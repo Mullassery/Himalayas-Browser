@@ -27,6 +27,12 @@ ADVANTAGE:            6.5x faster     80% lighter      6x leaner      8x longer
 
 ---
 
+## ⚠️ Note: Initial Release (Local Testing)
+
+> **This initial release is built for local testing (running on `localhost`). DNS and CDN support will be added in upcoming updates, and the full suite of other features is rolling out soon!**
+
+---
+
 ## Why Himalayas?
 
 ### 1. Actually Private
