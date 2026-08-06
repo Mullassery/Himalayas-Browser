@@ -1,0 +1,31 @@
+[package]
+name = "himalayas"
+version = "0.1.0"
+edition = "2021"
+authors = ["Georgi Mammen Mullassery <mullassery@gmail.com>"]
+description = "The world's first truly agent-native browser platform"
+repository = "https://github.com/Mullassery/Himalayas"
+license = "Proprietary"
+
+[dependencies]
+tokio = { version = "1.35", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+clap = { version = "4.4", features = ["derive"] }
+anyhow = "1.0"
+thiserror = "1.0"
+uuid = { version = "1.6", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+dashmap = "5.5"
+parking_lot = "0.12"
+metrics = "0.21"
+metrics-exporter-prometheus = "0.13"
+config = { version = "0.13", features = ["toml", "json", "yaml"] }
+hyper = { version = "0.14", features = ["full"] }
+
+toml = "0.8"
+
+[dev-dependencies]
+tokio-test = "0.4"
