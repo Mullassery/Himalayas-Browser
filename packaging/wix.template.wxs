@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Product
+    Id="*"
+    Name="Himalayas Browser"
+    Language="1033"
+    Version="0.1.0.0"
+    Manufacturer="Georgi Mammen Mullassery"
+    UpgradeCode="12345678-1234-1234-1234-123456789012">
+
+    <Package
+      InstallerVersion="200"
+      Compressed="yes"
+      InstallScope="perMachine"
+      Description="The world's first truly agent-native browser platform" />
+
+    <!-- Media for the installer -->
+    <Media Id="1" Cabinet="himalayas.cab" EmbedCab="yes" />
+
+    <!-- Install directory structure -->
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="ProgramFilesFolder">
+        <Directory Id="INSTALLFOLDER" Name="Himalayas Browser" />
+      </Directory>
+      <Directory Id="ProgramMenuFolder">
+        <Directory Id="ApplicationProgramsFolder" Name="Himalayas" />
+      </Directory>
+    </Directory>
+
+    <!-- Feature definition -->
+    <Feature
+      Id="ProductFeature"
+      Title="Himalayas Browser"
+      Level="1"
+      Description="The world's first truly agent-native browser platform">
+
+      <Feature
+        Id="BrowserExecutable"
+        Title="Browser Engine"
+        Level="1"
+        Description="Core browser application">
+        <ComponentRef Id="BrowserBinary" />
+      </Feature>
+
+      <Feature
+        Id="Documentation"
+        Title="Documentation"
+        Level="1"
+        Description="User guide and documentation">
+        <ComponentRef Id="ReadmeFile" />
+      </Feature>
+
+      <Feature
+        Id="DesktopShortcut"
+        Title="Desktop Shortcut"
+        Level="2"
+        Description="Create shortcut on desktop">
+        <ComponentRef Id="DesktopShortcut" />
+      </Feature>
+
+      <Feature
+        Id="StartMenuShortcut"
+        Title="Start Menu Shortcut"
+        Level="1"
+        Description="Create shortcut in Start Menu">
+        <ComponentRef Id="StartMenuShortcut" />
+      </Feature>
+    </Feature>
+
+    <!-- Components -->
+    <DirectoryRef Id="INSTALLFOLDER">
+      <Component Id="BrowserBinary" Guid="87654321-4321-4321-4321-210987654321">
+        <File
+          Id="HimalayasExe"
+          Source="target/x86_64-pc-windows-msvc/release/himalayas.exe"
+          KeyPath="yes" />
+      </Component>
+
+      <Component Id="ReadmeFile" Guid="11111111-1111-1111-1111-111111111111">
+        <File
+          Id="ReadmeFile"
+          Source="README.md"
+          KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+
+    <!-- Desktop Shortcut -->
+    <DirectoryRef Id="DesktopFolder">
+      <Component Id="DesktopShortcut" Guid="22222222-2222-2222-2222-222222222222">
+        <Shortcut
+          Id="DesktopShortcut"
+          Name="Himalayas Browser"
+          Description="The world's first truly agent-native browser platform"
+          Target="[INSTALLFOLDER]himalayas.exe"
+          WorkingDirectory="INSTALLFOLDER" />
+        <RegistryValue
+          Root="HKCU"
+          Key="Software\Himalayas"
+          Name="DesktopShortcut"
+          Type="integer"
+          Value="1"
+          KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+
+    <!-- Start Menu Shortcut -->
+    <DirectoryRef Id="ApplicationProgramsFolder">
+      <Component Id="StartMenuShortcut" Guid="33333333-3333-3333-3333-333333333333">
+        <Shortcut
+          Id="StartMenuShortcut"
+          Name="Himalayas Browser"
+          Description="The world's first truly agent-native browser platform"
+          Target="[INSTALLFOLDER]himalayas.exe"
+          WorkingDirectory="INSTALLFOLDER" />
+        <RemoveFolder
+          Id="ApplicationProgramsFolder"
+          On="uninstall" />
+        <RegistryValue
+          Root="HKCU"
+          Key="Software\Himalayas"
+          Name="StartMenuShortcut"
+          Type="integer"
+          Value="1"
+          KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+
+    <!-- UI -->
+    <UIRef Id="WixUI_InstallDir" />
+    <UIRef Id="WixUI_ErrorProgressText" />
+
+    <!-- License -->
+    <WixVariable Id="WixUILicenseRtf" Value="packaging\license.rtf" />
+    <WixVariable Id="WixUIBannerBmp" Value="packaging\banner.bmp" />
+    <WixVariable Id="WixUIDialogBmp" Value="packaging\dialog.bmp" />
+
+    <!-- Install action sequence -->
+    <InstallExecuteSequence>
+      <RemoveExistingProducts After="InstallInitialize" />
+    </InstallExecuteSequence>
+  </Product>
+</Wix>

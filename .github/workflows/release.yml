@@ -1,0 +1,229 @@
+name: Multi-Platform Release Build
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  build-linux:
+    name: Build Linux (x86_64 & ARM64)
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target:
+          - x86_64-unknown-linux-gnu
+          - aarch64-unknown-linux-gnu
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install cross
+        run: cargo install cross
+
+      - name: Build
+        run: cross build --release --target ${{ matrix.target }}
+
+      - name: Create DEB Package
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
+        run: |
+          mkdir -p /tmp/himalayas-deb/usr/bin
+          mkdir -p /tmp/himalayas-deb/usr/share/doc/himalayas
+          mkdir -p /tmp/himalayas-deb/DEBIAN
+
+          cp target/${{ matrix.target }}/release/himalayas /tmp/himalayas-deb/usr/bin/
+          cp README.md /tmp/himalayas-deb/usr/share/doc/himalayas/
+          cp LICENSE /tmp/himalayas-deb/usr/share/doc/himalayas/ 2>/dev/null || true
+
+          cat > /tmp/himalayas-deb/DEBIAN/control << EOF
+          Package: himalayas
+          Version: ${{ github.ref_name }}
+          Architecture: amd64
+          Maintainer: Georgi Mammen Mullassery <mullassery@gmail.com>
+          Homepage: https://github.com/Mullassery/Himalayas
+          Description: The world's first truly agent-native browser platform
+           Himalayas is a revolutionary browser designed from the ground up
+           to be agent-native, with privacy and security as first-class citizens.
+          EOF
+
+          dpkg-deb --build /tmp/himalayas-deb himalayas_${{ github.ref_name }}_amd64.deb
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: linux-builds
+          path: |
+            target/${{ matrix.target }}/release/himalayas
+            himalayas_*.deb
+
+  build-macos:
+    name: Build macOS (Intel & Apple Silicon)
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        target:
+          - x86_64-apple-darwin
+          - aarch64-apple-darwin
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Build
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Create Universal Binary
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          mkdir -p target/release-universal/bin
+          lipo -create \
+            target/x86_64-apple-darwin/release/himalayas \
+            target/aarch64-apple-darwin/release/himalayas \
+            -output target/release-universal/bin/himalayas
+
+      - name: Create DMG Package
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          mkdir -p /tmp/himalayas-dmg/Himalayas
+          mkdir -p /tmp/himalayas-dmg/.background
+
+          cp target/release-universal/bin/himalayas /tmp/himalayas-dmg/Himalayas/
+          cp README.md /tmp/himalayas-dmg/Himalayas/
+          ln -s /Applications /tmp/himalayas-dmg/Applications
+
+          hdiutil create -volname "Himalayas" \
+            -srcfolder /tmp/himalayas-dmg \
+            -ov -format UDZO \
+            himalayas_${{ github.ref_name }}_universal.dmg
+
+      - name: Code Sign (optional)
+        if: secrets.APPLE_CERTIFICATE_BASE64 != ''
+        run: |
+          echo "$APPLE_CERTIFICATE_BASE64" | base64 --decode > /tmp/cert.p12
+          security import /tmp/cert.p12 -P "$APPLE_CERTIFICATE_PASSWORD" -A
+          codesign -s - target/${{ matrix.target }}/release/himalayas
+
+      - name: Notarize (optional)
+        if: secrets.APPLE_NOTARY_USER != ''
+        run: |
+          xcrun notarytool submit himalayas_${{ github.ref_name }}_universal.dmg \
+            --apple-id "$APPLE_NOTARY_USER" \
+            --password "$APPLE_NOTARY_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" \
+            --wait
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: macos-builds
+          path: |
+            target/${{ matrix.target }}/release/himalayas
+            himalayas_*.dmg
+
+  build-windows:
+    name: Build Windows (x86_64 & ARM64)
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        target:
+          - x86_64-pc-windows-msvc
+          - aarch64-pc-windows-msvc
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Build
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Create MSI Installer
+        if: matrix.target == 'x86_64-pc-windows-msvc'
+        run: |
+          # Install WiX Toolset if not already installed
+          if (-not (Get-Command heat.exe -ErrorAction SilentlyContinue)) {
+            choco install wixtoolset -y
+            refreshenv
+          }
+
+          # Create WiX configuration
+          New-Item -ItemType Directory -Path packaging\wix -Force
+          Copy-Item ".\packaging\wix.template.wxs" ".\packaging\wix\himalayas.wxs"
+
+          # Build MSI
+          & "$env:WIX\bin\candle.exe" -o obj\ .\packaging\wix\himalayas.wxs
+          & "$env:WIX\bin\light.exe" -out himalayas_${{ github.ref_name }}_x86_64.msi obj\*.wixobj
+
+      - name: Create Portable ZIP
+        run: |
+          New-Item -ItemType Directory -Path himalayas-portable
+          Copy-Item target\${{ matrix.target }}\release\himalayas.exe himalayas-portable\
+          Copy-Item README.md himalayas-portable\
+          Compress-Archive -Path himalayas-portable -DestinationPath himalayas_${{ github.ref_name }}_${{ matrix.target }}.zip
+
+      - name: Sign Executable (optional)
+        if: secrets.WINDOWS_SIGNING_CERT_BASE64 != ''
+        run: |
+          [IO.File]::WriteAllBytes("cert.pfx", [Convert]::FromBase64String("$env:WINDOWS_SIGNING_CERT_BASE64"))
+          signtool sign /f cert.pfx /p "$env:WINDOWS_SIGNING_PASSWORD" /t http://timestamp.digicert.com `
+            "target\${{ matrix.target }}\release\himalayas.exe"
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: windows-builds
+          path: |
+            target\${{ matrix.target }}\release\himalayas.exe
+            himalayas_*.msi
+            himalayas_*.zip
+
+  create-release:
+    name: Create GitHub Release
+    needs: [build-linux, build-macos, build-windows]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v3
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            linux-builds/**
+            macos-builds/**
+            windows-builds/**
+          draft: false
+          prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') }}
+          body_path: RELEASE_NOTES.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-crates-io:
+    name: Publish to crates.io
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Publish
+        run: cargo publish --token ${{ secrets.CARGO_TOKEN }}

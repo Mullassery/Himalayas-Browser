@@ -10,6 +10,7 @@ pub mod intelligence;
 pub mod metrics;
 pub mod permission;
 pub mod server;
+pub mod ui;
 
 // India Stack is optional (feature-gated for regional availability)
 #[cfg(feature = "india_stack")]

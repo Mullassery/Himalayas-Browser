@@ -6,6 +6,9 @@ authors = ["Georgi Mammen Mullassery <mullassery@gmail.com>"]
 description = "The world's first truly agent-native browser platform"
 repository = "https://github.com/Mullassery/Himalayas"
 license = "Proprietary"
+readme = "README.md"
+keywords = ["browser", "agent", "os", "native", "ai"]
+categories = ["command-line-utilities", "network-programming"]
 
 [[bin]]
 name = "himalayas"
@@ -14,6 +17,10 @@ path = "src/main.rs"
 [lib]
 name = "himalayas"
 path = "src/lib.rs"
+
+[build-dependencies]
+built = "0.7"
+chrono = "0.4"
 
 [dependencies]
 tokio = { version = "1.35", features = ["full"] }
@@ -40,8 +47,18 @@ base64 = "0.21"
 sys-info = "0.9"
 num_cpus = "1.16"
 fxhash = "0.2"
-
 toml = "0.8"
+
+[target.'cfg(windows)'.dependencies]
+winapi = { version = "0.3", features = ["winuser", "winbase", "processthreadsapi", "winnt"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+core-foundation = "0.9"
+objc = "0.2"
+objc-foundation = "0.1"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+x11-clipboard = "0.9"
 
 [features]
 default = ["india_stack"]
@@ -50,3 +67,14 @@ full = ["india_stack"]
 
 [dev-dependencies]
 tokio-test = "0.4"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
+
+[profile.release-with-debug]
+inherits = "release"
+strip = false
+debug = true
