@@ -5,6 +5,7 @@ pub mod config;
 pub mod daemon;
 pub mod document;
 pub mod health;
+pub mod intelligence;
 pub mod metrics;
 pub mod permission;
 pub mod server;

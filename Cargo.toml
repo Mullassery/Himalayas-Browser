@@ -37,6 +37,8 @@ regex = "1.10"
 pdf = "0.10"
 image = "0.24"
 base64 = "0.21"
+sys-info = "0.9"
+num_cpus = "1.16"
 
 toml = "0.8"
 
