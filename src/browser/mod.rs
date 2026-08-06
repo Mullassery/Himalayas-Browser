@@ -1,10 +1,14 @@
 pub mod navigator;
 pub mod session;
 pub mod semantics;
+pub mod clipboard;
+pub mod tabs;
 
 pub use navigator::Navigator;
 pub use session::Session;
 pub use semantics::{SemanticDOM, SemanticElement};
+pub use clipboard::ClipboardManager;
+pub use tabs::TabManager;
 
 use anyhow::Result;
 use std::sync::Arc;

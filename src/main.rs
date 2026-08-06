@@ -5,12 +5,15 @@ use tracing::info;
 mod api;
 mod benchmark;
 mod browser;
+mod config;
 mod daemon;
 mod health;
-mod india_stack;
 mod metrics;
 mod permission;
 mod server;
+
+#[cfg(feature = "india_stack")]
+mod india_stack;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about = "Himalayas Browser - Agent-Native Operating System", long_about = None)]
@@ -48,7 +51,7 @@ async fn main() -> Result<()> {
 
     init_logging(args.verbose);
 
-    info!("🏔️ Himalayas Browser - Phase 0 Foundation");
+    info!("🏔️ Himalayas Browser - Agent-Native Operating System");
 
     match args.command {
         Some(Command::Benchmark { output }) => {

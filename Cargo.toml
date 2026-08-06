@@ -40,5 +40,10 @@ base64 = "0.21"
 
 toml = "0.8"
 
+[features]
+default = ["india_stack"]
+india_stack = []
+full = ["india_stack"]
+
 [dev-dependencies]
 tokio-test = "0.4"
