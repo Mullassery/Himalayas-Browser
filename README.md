@@ -209,14 +209,14 @@ cargo build --release
 
 ## 📖 Documentation
 
-**Getting Started** (Recommended first read)
-- [GETTING_STARTED.md](./GETTING_STARTED.md) - Installation, setup, first steps
-- [USAGE.md](./USAGE.md) - Features, workflows, advanced usage
-- [KEYBOARD_TRACKPAD_SPEC.md](./KEYBOARD_TRACKPAD_SPEC.md) - Phase 6 planned features
+**Start Here**
+- 📖 [Getting Started](./docs/GETTING_STARTED.md) - Installation, setup, first steps
+- 🎯 [Usage Guide](./docs/USAGE.md) - Features, workflows, tips & tricks
+- 🗺️ [Roadmap](./docs/ROADMAP.md) - Planned features (Phase 6+)
 
 **For Developers**
-- [INSTALLATION.md](./INSTALLATION.md) - Full platform-specific guide
-- Build System: See `build.rs` and `Cargo.toml`
+- Build: `cargo build --release`
+- Test: `cargo test --lib`
 - CI/CD: See `.github/workflows/release.yml`
 
 ---
@@ -441,15 +441,18 @@ Himalayas is ground-up agent-native. Every design decision prioritizes agents:
 
 ## 🤝 Contributing
 
-We're actively building. Interested in:
+We're actively building and welcome contributions!
 
-- Security hardening?
-- Performance optimization?
-- Platform-specific features?
-- Documentation?
-- Testing?
+**[See CONTRIBUTING.md](./CONTRIBUTING.md)** for:
+- Setup instructions
+- Development workflow
+- Code standards
+- Testing guidelines
+- PR process
 
-See [CONTRIBUTING.md](./CONTRIBUTING.md) to get started.
+**[Report issues](https://github.com/Mullassery/Himalayas-Browser/issues/new)** for bugs and feature requests.
+
+**[Code of Conduct](./CODE_OF_CONDUCT.md)** - Please review our community standards.
 
 ---
 

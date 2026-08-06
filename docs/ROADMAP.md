@@ -1,522 +1,997 @@
-# Himalayas Browser: Execution Roadmap
+# Keyboard & Trackpad Support Specification
 
-## Overview
-
-**Total Duration**: 39 weeks (solo) or 20-24 weeks (with team)
-
-**Phases**: 11
-
-**Starting**: August 6, 2026
-
-**MVP Target**: Week 13 (October 1, 2026)
-
-**Production Target**: Week 28 (December 17, 2026)
-
-**Platform Target**: Week 39 (March 12, 2027)
+**Version**: 0.2.0 (Planned Phase 6)  
+**Status**: Design specification  
+**Target Release**: Q4 2026
 
 ---
 
-## Phase 0: Foundation (Weeks 1-3)
+## Vision
 
-**Goal**: Core runtime, daemon, health monitoring, benchmarking
-
-### Deliverables
-
-- [ ] **Daemon Process**
-  - Single-process runtime model
-  - Configuration management
-  - Lifecycle management (start, stop, restart)
-  - Health monitoring and metrics
-  - Logging infrastructure (structured)
-
-- [ ] **Benchmarking Suite**
-  - Startup time (<500ms target)
-  - Memory footprint baseline
-  - CPU usage patterns
-  - Network performance
-  - Regression detection
-
-- [ ] **Health Monitoring**
-  - Real-time metrics (CPU, memory, network)
-  - Error rate tracking
-  - Permission usage tracking
-  - Session lifecycle tracking
-  - Performance regression alerts
-
-### Technical Components
-
-```
-src/
-├── daemon/
-│   ├── main.rs (entry point)
-│   ├── lifecycle.rs (start/stop/restart)
-│   ├── config.rs (configuration)
-│   └── health.rs (monitoring)
-├── metrics/
-│   ├── collector.rs
-│   ├── exporter.rs
-│   └── aggregator.rs
-└── lib.rs
-```
-
-### Success Criteria
-
-- Daemon starts in <500ms
-- Zero panics under normal operation
-- Metrics collected and available
-- Configurable via JSON/YAML
-- Graceful shutdown handling
-
-### Effort Estimate
-
-- Solo: 3 weeks
-- Team (2): 1.5 weeks
+Himalayas Browser with **100% keyboard accessibility** and **deep multi-touch trackpad integration** across Windows, macOS, and Linux. Every function accessible without a mouse. AI understands user intent from gestures.
 
 ---
 
-## Phase 1: MVP (Weeks 4-13)
+## Core Principles
 
-**Goal**: Navigable browser, semantic rendering, basic agent APIs
-
-### Deliverables
-
-- [ ] **Navigation Engine**
-  - HTTP client (reqwest)
-  - Page loading
-  - Redirect handling
-  - History management
-  - Session cookies
-
-- [ ] **Semantic Renderer**
-  - Parse HTML/CSS
-  - Build semantic DOM
-  - Extract structure
-  - Identify forms, buttons, links
-  - Expose via APIs (not visual)
-
-- [ ] **Multi-Session Management**
-  - Session isolation
-  - Storage per-session
-  - Permission scope
-  - User context
-  - Workspace separation
-
-- [ ] **Basic Agent APIs**
-  - navigate(url)
-  - query(selector)
-  - get_text()
-  - set_value(input, text)
-  - click(element)
-  - execute_script(js)
-
-- [ ] **Permission Engine v1**
-  - Permission requests
-  - User approval flow
-  - Time-bound expiration
-  - Basic audit log
-
-- [ ] **Simple GUI**
-  - Agent status
-  - Session list
-  - Permission requests
-  - Audit log viewer
-  - Basic debugging
-
-### Technical Components
-
-```
-src/
-├── browser/
-│   ├── navigator.rs (HTTP, redirects, cookies)
-│   ├── parser.rs (HTML parsing)
-│   ├── semantics.rs (semantic DOM building)
-│   └── storage.rs (session storage)
-├── api/
-│   ├── agent.rs (agent interface)
-│   ├── navigation.rs (navigate, query)
-│   ├── interaction.rs (click, input)
-│   └── execution.rs (script execution)
-├── permission/
-│   ├── engine.rs (permission logic)
-│   ├── requests.rs (handling requests)
-│   └── storage.rs (permission storage)
-└── gui/
-    ├── server.rs (HTTP server)
-    └── handlers.rs (endpoints)
-```
-
-### Success Criteria
-
-- Navigate websites and parse content
-- 20+ agent APIs functional
-- Multi-session isolation verified
-- Permission engine working
-- GUI shows agent status
-
-### Effort Estimate
-
-- Solo: 10 weeks
-- Team (3-4): 4-5 weeks
-
-### MVP Target Date
-
-**October 1, 2026** (End of Week 13)
+1. **Mouse Optional** - Every feature accessible from keyboard
+2. **Keyboard First** - Power users prioritized
+3. **Touch Friendly** - Gesture-aware on trackpads/touchscreens
+4. **AI-Aware** - Intent recognition, not just input replay
+5. **Customizable** - User-definable shortcuts and gestures
+6. **Accessible** - Full screen reader support
+7. **Low Latency** - <1 frame (16ms @ 60Hz)
+8. **Works Offline** - No cloud dependency for keybindings
+9. **Cross-Platform** - Consistent experience (with native optimizations)
+10. **Developer Friendly** - Extensible API for plugins
 
 ---
 
-## Phase 2: Production Ready (Weeks 14-28)
+## Full Keyboard Navigation
 
-**Goal**: Studio, collaboration, enterprise policies, security hardening
+### Every UI Element Reachable
 
-### Deliverables
+- ✅ Address bar
+- ✅ Tabs (create, close, move, switch)
+- ✅ Sidebar (bookmarks, history, downloads)
+- ✅ AI panel
+- ✅ Developer Tools
+- ✅ Settings
+- ✅ Split view
+- ✅ Reader mode
+- ✅ Picture-in-picture
+- ✅ Media controls
+- ✅ Extensions panel
+- ✅ Workspace switcher
 
-- [ ] **Studio & Developer Tools**
-  - DOM inspector
-  - Network debugger
-  - Permission timeline
-  - Execution replay
-  - Token usage tracker
-  - Prompt debugger
-
-- [ ] **Collaboration Features**
-  - Multi-user sessions
-  - Agent coordination
-  - Shared workflows
-  - Comment/annotation
-  - Permission sharing
-
-- [ ] **Enterprise Policies**
-  - Policy engine
-  - Group policies
-  - Compliance templates
-  - Audit requirements
-  - Encryption options
-
-- [ ] **Security Hardening**
-  - Secret management
-  - Certificate handling
-  - TLS enforcement
-  - Authentication methods
-  - Token rotation
-
-- [ ] **Complete Permission Model**
-  - All 10 security layers
-  - Time-bound expiration
-  - Re-authentication workflows
-  - Risk-based policies
-  - Approval chains
-
-### Technical Components
-
+### Tab Navigation
 ```
-src/
-├── studio/
-│   ├── debugger.rs
-│   ├── inspector.rs
-│   └── replay.rs
-├── collaboration/
-│   ├── multi_user.rs
-│   ├── coordination.rs
-│   └── workflow.rs
-├── enterprise/
-│   ├── policies.rs
-│   ├── compliance.rs
-│   └── templates.rs
-└── security/
-    ├── secrets.rs
-    ├── crypto.rs
-    └── auth.rs
-```
-
-### Success Criteria
-
-- Studio enables full workflow debugging
-- Multi-user sessions secure and isolated
-- Enterprise policies enforced
-- All security layers functional
-- 99.9% uptime SLA met
-
-### Effort Estimate
-
-- Solo: 15 weeks
-- Team (4-5): 8-10 weeks
-
-### Production Target Date
-
-**December 17, 2026** (End of Week 28)
-
----
-
-## Phase 3: Platform Expansion (Weeks 29-39)
-
-**Goal**: Regional support, advanced security, robotics integration, privacy by design
-
-### Deliverables
-
-- [ ] **Regional Expansion**
-  - Multi-region deployment
-  - Data residency options
-  - Regional endpoints
-  - Latency optimization
-
-- [ ] **Advanced Security**
-  - Rate limiting
-  - DDoS protection
-  - Intrusion detection
-  - Behavioral anomaly detection
-  - Advanced threat modeling
-
-- [ ] **Robotics Integration**
-  - ROS 2 support
-  - Sensor interfaces
-  - Actuator control
-  - Real-time constraints
-  - Safety guarantees
-
-- [ ] **Privacy by Design**
-  - GDPR compliance
-  - Data minimization
-  - Automatic cleanup
-  - Privacy audit
-  - Encryption everywhere
-
-- [ ] **Marketplace & Skills**
-  - Skill marketplace
-  - Skill signing
-  - Capability isolation
-  - Monetization options
-
-### Technical Components
-
-```
-src/
-├── regional/
-│   ├── deployment.rs
-│   ├── replication.rs
-│   └── failover.rs
-├── security_advanced/
-│   ├── detection.rs
-│   ├── response.rs
-│   └── analytics.rs
-├── robotics/
-│   ├── ros2.rs
-│   ├── safety.rs
-│   └── sensors.rs
-└── privacy/
-    ├── scrubbing.rs
-    ├── compliance.rs
-    └── audit.rs
-```
-
-### Success Criteria
-
-- Multi-region deployment operational
-- GDPR/CCPA compliant
-- Robotics integration tested
-- Marketplace MVP launched
-- Platform-ready for scale
-
-### Effort Estimate
-
-- Solo: 11 weeks
-- Team (5-6): 6-7 weeks
-
-### Platform Target Date
-
-**March 12, 2027** (End of Week 39)
-
----
-
-## Phases 4-11: Advanced Features (Beyond Week 39)
-
-### Phase 4: Enterprise Scale (Weeks 40-52)
-- Fleet management (50K+ agents)
-- Advanced compliance
-- Multi-tenant isolation
-- SLA guarantees
-
-### Phase 5: AI Integration (Weeks 40-52)
-- Multi-model support
-- Model management
-- Prompt engineering tools
-- Fine-tuning integration
-
-### Phase 6: Developer Ecosystem (Weeks 53-65)
-- SDK in multiple languages
-- API documentation
-- Example projects
-- Community features
-
-### Phase 7: Advanced Workflows (Weeks 66-78)
-- Workflow builder (no-code)
-- Conditional logic
-- Error handling
-- Notification system
-
-### Phase 8: Analytics (Weeks 79-91)
-- Agent performance analytics
-- Usage patterns
-- Cost optimization
-- Trend analysis
-
-### Phase 9: Governance (Weeks 92-104)
-- Role-based access control
-- Policy templates
-- Compliance reporting
-- Audit workflows
-
-### Phase 10: Open Ecosystem (Weeks 105-117)
-- Public API
-- Partner integrations
-- Third-party tools
-- Community extensions
-
-### Phase 11: Vision 2030 (Weeks 118+)
-- Himalayas OS direction
-- Industry leadership
-- Research partnerships
-- Next-generation features
-
----
-
-## Resource Requirements
-
-### Phase 0 (Weeks 1-3)
-- **Solo**: 1 engineer (full-time)
-- **Minimal**: 1-2 engineers
-
-### Phase 1 (Weeks 4-13)
-- **Solo**: 1 engineer (full-time)
-- **Recommended**: 3-4 engineers
-  - 1 backend (navigation, APIs)
-  - 1 frontend (GUI, UX)
-  - 1 security (permissions, isolation)
-  - 1 QA (testing, benchmarks)
-
-### Phase 2 (Weeks 14-28)
-- **Recommended**: 4-5 engineers
-  - Add 1 DevOps/Infrastructure
-
-### Phase 3 (Weeks 29-39)
-- **Recommended**: 5-6 engineers
-  - Add 1 robotics specialist
-
-### Beyond
-- Scale with demand
-- Target 10-20 person team by Year 2
-
----
-
-## Critical Path
-
-```
-Phase 0 (Foundation)
-    ↓ (Week 3)
-Phase 1 (MVP)
-    ├─ Navigation & Semantics (parallel)
-    ├─ Session Management (parallel)
-    ├─ Permission Engine (parallel)
-    └─ Basic GUI (parallel)
-    ↓ (Week 13)
-Phase 2 (Production)
-    ├─ Studio Tools (parallel)
-    ├─ Security Hardening (parallel)
-    ├─ Enterprise Policies (parallel)
-    └─ Collaboration (parallel)
-    ↓ (Week 28)
-Phase 3 (Platform)
-    ├─ Regional (parallel)
-    ├─ Advanced Security (parallel)
-    ├─ Robotics (parallel)
-    └─ Privacy (parallel)
-    ↓ (Week 39)
-Platform Ready
+Tab/Shift+Tab           → Move focus forward/backward
+Arrow Keys              → Navigate menu items
+Enter                   → Activate focused item
+Space                   → Toggle/expand focused item
+Escape                  → Close menu/dialog
 ```
 
 ---
 
-## Success Metrics by Phase
+## Universal Command Palette
 
-### Phase 0
-- Daemon uptime: 99%
-- Startup: <500ms
-- Build time: <5 minutes
-- Benchmark suite comprehensive
+**Activation**: `Ctrl+Shift+P` (Windows/Linux) or `Cmd+Shift+P` (macOS)
 
-### Phase 1
-- MVP feature complete: 100%
-- Agent APIs: 20+ functional
-- Permission engine: Working
-- GUI operational
+### Searchable Functions
 
-### Phase 2
-- Production uptime: 99.9%
-- Security audited: Pass
-- Enterprise policies: Enforced
-- Studio tools: Complete
+**Navigation**
+- Open tab (exact match)
+- Go to URL
+- Find in page
+- Show history
+- Open bookmarks
+- Close tab
+- Restore tab
+- Move tab
 
-### Phase 3
-- Regional deployment: Multi-region
-- GDPR compliance: Certified
-- Robotics integration: Tested
-- Platform ready: Scale-tested
+**Document**
+- Open file
+- Save page
+- Print
+- Reader mode
+- PDF generation
+- Screenshot
+- Inspect element
 
----
+**AI**
+- Summarize page
+- Explain selection
+- Translate
+- Fact check
+- Generate tests
+- Debug code
+- Optimize code
+- Extract entities
 
-## Risk Mitigation
+**System**
+- Clear cache
+- Clear history
+- Clear cookies
+- Reset settings
+- Export data
+- Import data
 
-### Technical Risks
-- **Complexity**: Phased approach, MVP-first
-- **Performance**: Continuous benchmarking
-- **Security**: Regular audits, threat modeling
-- **Scalability**: Load testing at each phase
+**Workspace**
+- Create workspace
+- Switch workspace
+- Rename workspace
+- Move tab to workspace
+- Archive workspace
 
-### Market Risks
-- **Adoption**: Community engagement, developer relations
-- **Competition**: Differentiation (agent-native, privacy, open)
-- **Funding**: Open-source first, freemium later
+**Developer**
+- Open DevTools
+- Open Console
+- Open Inspector
+- Open Network tab
+- Open Performance tab
+- Record performance
+- Toggle breakpoint
 
-### Team Risks
-- **Hiring**: Early recruitment, culture building
-- **Burnout**: Sustainable pace, realistic timeline
-- **Turnover**: Clear vision, meaningful work
-
----
-
-## Deliverables Schedule
-
-| Phase | Duration | Key Deliverables | Target Date |
-|-------|----------|------------------|-------------|
-| 0 | 3w | Daemon, metrics, health | Aug 23 |
-| 1 | 10w | MVP, APIs, permissions | Oct 1 |
-| 2 | 15w | Production, security, enterprise | Dec 17 |
-| 3 | 11w | Platform, privacy, robotics | Mar 12 |
-
----
-
-## Next Steps
-
-**Week 1 Start Date**: August 6, 2026
-
-1. **Immediate** (Week 1)
-   - Set up repo structure
-   - Initialize Rust project
-   - Create development environment
-   - Establish coding standards
-
-2. **Week 2-3**
-   - Daemon implementation
-   - Configuration system
-   - Health monitoring
-   - Benchmarking
-
-3. **Week 4+**
-   - Phase 1 begins
-   - First MVP milestone
-   - Community engagement
+### Features
+- Fuzzy search matching
+- Command aliases
+- Recent commands list
+- Search history
+- Icon display
+- Keyboard-only operation
 
 ---
 
-**Status**: Ready to start  
-**Next Action**: Begin Phase 0 implementation  
-**Questions?** See [PRODUCT_VISION.md](./PRODUCT_VISION.md) or open an issue.
+## Intelligent Keyboard Shortcuts
+
+### Shortcut Types
+
+**Single Key**
+```
+h        → Home
+j        → Jump to next
+k        → Jump to previous
+/        → Find
+?        → Help
+```
+
+**Double Key**
+```
+g h      → Go home
+g d      → Go downloads
+g b      → Go bookmarks
+g s      → Go settings
+```
+
+**Key Sequences**
+```
+Ctrl K   → Quick search
+Ctrl L   → Focus address bar
+Ctrl T   → New tab
+Ctrl W   → Close tab
+```
+
+**Chord Shortcuts**
+```
+Ctrl+Shift+N     → New private window
+Ctrl+Alt+T       → Open terminal (if available)
+Ctrl+Shift+Del   → Clear browsing data
+```
+
+### Default Bindings
+
+**Tab Management**
+| Action | Windows/Linux | macOS |
+|--------|---------------|-------|
+| New tab | Ctrl+T | Cmd+T |
+| Close tab | Ctrl+W | Cmd+W |
+| Reopen tab | Ctrl+Shift+T | Cmd+Shift+T |
+| Next tab | Ctrl+Tab | Cmd+} |
+| Previous tab | Ctrl+Shift+Tab | Cmd+{ |
+| Move tab left | Ctrl+Shift+PageUp | Cmd+Shift+← |
+| Move tab right | Ctrl+Shift+PageDown | Cmd+Shift+→ |
+| Pin tab | Ctrl+Shift+P | Cmd+Shift+P |
+
+**Navigation**
+| Action | Windows/Linux | macOS |
+|--------|---------------|-------|
+| Back | Alt+← or Backspace | Cmd+[ |
+| Forward | Alt+→ | Cmd+] |
+| Reload | Ctrl+R | Cmd+R |
+| Hard reload | Ctrl+Shift+R | Cmd+Shift+R |
+| Focus address bar | Ctrl+L | Cmd+L |
+| Search tabs | Ctrl+Shift+A | Cmd+Shift+A |
+
+**Page Functions**
+| Action | Windows/Linux | macOS |
+|--------|---------------|-------|
+| Summarize | Ctrl+Shift+S | Cmd+Shift+S |
+| Find | Ctrl+F | Cmd+F |
+| Print | Ctrl+P | Cmd+P |
+| Save page | Ctrl+S | Cmd+S |
+| View source | Ctrl+U | Cmd+U |
+| DevTools | F12 | F12 |
+| Inspector | Ctrl+Shift+C | Cmd+Shift+C |
+
+---
+
+## User Customization
+
+### Import/Export
+```yaml
+# Export format (YAML/JSON)
+shortcuts:
+  - name: "Go Home"
+    keys: [Ctrl, H]
+    action: "navigate_home"
+    mode: "all"
+  - name: "Summarize"
+    keys: [Ctrl, Shift, S]
+    action: "ai_summarize"
+    modes: ["normal", "power_user"]
+```
+
+Users can:
+- ✅ Redefine every shortcut
+- ✅ Export custom profiles
+- ✅ Import community profiles
+- ✅ Share profiles with team
+- ✅ Per-workspace customization
+- ✅ Fallback to defaults
+
+### Keyboard Profiles
+
+**Built-in Profiles**
+- Standard (balanced)
+- Power User (vim-like)
+- Developer (IDE-like)
+- Gaming (low latency)
+- Mac Native (macOS conventions)
+- Windows Native (Windows conventions)
+- Linux Native (Linux conventions)
+- Vim Mode (full vim navigation)
+- Emacs Mode (emacs bindings)
+- IDE Layout (VSCode/JetBrains)
+
+**Modes**
+- Normal Mode (default)
+- Power User (advanced shortcuts)
+- Developer (DevTools shortcuts)
+- Accessibility (high contrast, larger fonts)
+- Presentation (simplified UI)
+- Minimal (bare essentials)
+
+Each mode exposes different shortcut sets.
+
+---
+
+## Vim Mode
+
+Complete vim-like navigation without modal interface complexity.
+
+### Navigation
+```
+j            → Scroll down
+k            → Scroll up
+gg           → Go to top
+G            → Go to bottom
+H            → Go to home
+```
+
+### Search & Movement
+```
+/text        → Find forward
+?text        → Find backward
+n            → Next match
+N            → Previous match
+f            → Find element (click equivalent)
+F            → Find element (reverse)
+```
+
+### Tab Operations
+```
+gt           → Next tab
+gT           → Previous tab
+gn           → New tab
+gx           → Close tab
+gr           → Reload tab
+```
+
+### Page Operations
+```
+y            → Copy URL
+d            → Download link
+r            → Reload
+b            → Bookmarks menu
+h            → History
+t            → New tab
+```
+
+### Full Mode Toggle
+```
+Escape       → Toggle vim mode
+:set novimode → Disable vim mode
+```
+
+---
+
+## Emacs Mode
+
+Native Emacs keybindings for text editing and navigation.
+
+### Navigation
+```
+Ctrl+F       → Forward char
+Ctrl+B       → Backward char
+Ctrl+N       → Next line
+Ctrl+P       → Previous line
+Meta+F       → Forward word
+Meta+B       → Backward word
+Ctrl+A       → Beginning of line
+Ctrl+E       → End of line
+```
+
+### Editing
+```
+Ctrl+K       → Kill line
+Ctrl+Y       → Yank (paste)
+Ctrl+_       → Undo
+Meta+D       → Kill word
+Meta+Backspace → Backward kill word
+```
+
+### Search
+```
+Ctrl+S       → Isearch forward
+Ctrl+R       → Isearch backward
+Meta+%       → Query replace
+```
+
+### Registers & Kill Ring
+```
+Ctrl+Space   → Set mark
+Ctrl+W       → Kill region
+Meta+W       → Copy region
+Ctrl+X Ctrl+X → Exchange point and mark
+```
+
+---
+
+## Keyboard Macros
+
+Users can record and replay workflows.
+
+### Recording
+```
+Ctrl+Alt+J   → Start recording macro
+[perform actions]
+Ctrl+Alt+J   → Stop recording
+Ctrl+Alt+K   → Play last macro
+```
+
+### Example Workflow
+```
+1. Ctrl+Shift+P         → Open command palette
+2. "Open Dashboard"     → Find and select
+3. Enter                → Execute
+4. Ctrl+R               → Refresh
+5. Ctrl+Alt+D           → Download CSV
+6. [navigate to rename]
+7. F2                   → Rename
+8. Ctrl+X               → Archive
+
+[Save as: daily_report_macro]
+[Replay with: Ctrl+Shift+R]
+```
+
+### Macro Management
+- Save/load macros
+- Macro library
+- Conditional macros
+- Time-delayed steps
+- Variable substitution
+
+---
+
+## AI Keyboard Assistant
+
+**Activation**: `Ctrl+Space` or `Cmd+Space`
+
+AI panel appears instantly at cursor, understanding context.
+
+### Commands
+```
+Summarize       → Summarize selected text or page
+Explain         → Explain with AI
+Translate       → Translate to specified language
+Extract         → Extract structured data
+Rewrite         → Rephrase/improve text
+Generate Code   → Generate code snippet
+Compare         → Compare two documents
+Fact Check      → Verify claims
+Define          → Define term
+Expand          → Expand abbreviation
+```
+
+### Context-Aware
+- Analyzes surrounding content
+- Offers relevant commands
+- Learns from user behavior
+- Suggests next steps
+
+---
+
+## Context-Aware Shortcuts
+
+Shortcut behavior changes based on active context.
+
+### Reading PDF
+```
+Space           → Next page
+Shift+Space     → Previous page
+Ctrl+F          → Find in PDF
+Ctrl+P          → Print PDF
+Ctrl+S          → Save PDF
+Ctrl+E          → Extract text
+```
+
+### Playing Video
+```
+Space           → Play/Pause
+J               → Rewind 10s
+K               → Forward 10s
+M               → Mute
+F               → Fullscreen
+C               → Toggle captions
+< / >           → Slower/Faster
+```
+
+### In Terminal/Shell
+```
+Space           → Insert character (not search)
+Ctrl+C          → Interrupt (not copy)
+Ctrl+L          → Clear screen (not copy)
+Ctrl+D          → EOF (not delete)
+```
+
+### In AI Chat
+```
+Space           → Normal typing (not next page)
+Enter           → Send message (not activate)
+Ctrl+K          → Previous message
+Ctrl+J          → Next message
+Escape          → Close chat
+```
+
+### In Code Editor
+```
+Tab             → Indent (not focus change)
+Ctrl+/          → Comment toggle
+Ctrl+G          → Go to line
+F11             → Fullscreen editor
+Ctrl+F          → Find in file
+```
+
+---
+
+## Keyboard-Driven Tab Management
+
+Everything accessible without mouse.
+
+### Operations
+```
+Ctrl+T          → Create tab
+Ctrl+W          → Close tab
+Ctrl+Shift+T    → Restore tab
+Ctrl+Tab        → Next tab
+Ctrl+Shift+Tab  → Previous tab
+Ctrl+Shift+M    → Mute tab
+Ctrl+Shift+P    → Pin tab
+Ctrl+Alt+S      → Suspend tab
+Ctrl+Alt+R      → Restore tab
+Ctrl+Shift+G    → Group tabs
+Ctrl+Alt+G      → Manage groups
+Ctrl+Shift+F    → Fullscreen tab
+Ctrl+Alt+D      → Duplicate tab
+```
+
+### Tab Search
+```
+Ctrl+Shift+A    → Search open tabs
+[Type tab name]
+[Select tab]
+Enter           → Switch to tab
+```
+
+### Tab Arrangement
+```
+Ctrl+Shift+Left  → Move tab left
+Ctrl+Shift+Right → Move tab right
+Ctrl+Shift+Up    → Move tab to new window
+Ctrl+Shift+Down  → Move tab to split
+```
+
+---
+
+## Keyboard Workspace Control
+
+Manage workspaces entirely from keyboard.
+
+### Operations
+```
+Ctrl+Shift+N    → Create workspace
+Ctrl+Shift+W    → Switch workspace
+Ctrl+Shift+R    → Rename workspace
+Ctrl+Shift+D    → Delete workspace
+Ctrl+Shift+M    → Move tab to workspace
+Ctrl+Alt+Left   → Previous workspace
+Ctrl+Alt+Right  → Next workspace
+```
+
+### Workspace Search
+```
+Ctrl+Shift+W    → Open workspace switcher
+[Type workspace name]
+Enter           → Switch
+```
+
+---
+
+## Omnibox (Keyboard Only)
+
+Unified search supporting everything.
+
+### Activation
+```
+Ctrl+L          → Focus omnibox
+Ctrl+K          → Quick search
+```
+
+### Supported Searches
+- **History** - Recent pages
+- **Bookmarks** - Saved pages
+- **Tabs** - Open tabs search
+- **AI Search** - Semantic search
+- **Calculator** - Math operations
+- **Unit Conversion** - Temperature, distance, etc.
+- **Clipboard History** - Recent copies
+- **Commands** - Browser commands
+- **Recently Closed** - Restore pages
+
+### Examples
+```
+"amazon laptop"         → Search web
+"!w python tutorial"    → Wikipedia search
+"!yt music"             → YouTube search
+"5 * 3 + 2"             → Calculator (= 17)
+"100 km in miles"       → Unit conversion
+"weather london"        → Weather lookup
+"time tokyo"            → World time
+"define serendipity"    → Dictionary
+":config"               → Open settings
+"@gmail compose"        → Gmail compose
+```
+
+---
+
+## Global Browser Hotkeys
+
+Work even when browser window is not focused (OS permission dependent).
+
+### Quick Actions
+```
+Ctrl+Alt+C      → Quick capture (screenshot)
+Ctrl+Alt+N      → Quick note (open notepad)
+Ctrl+Alt+S      → Quick search (selected text)
+Ctrl+Alt+T      → Quick translate
+Ctrl+Alt+O      → Quick OCR
+Ctrl+Alt+A      → AI assistant
+Ctrl+Alt+B      → Open browser
+```
+
+### Platform-Specific
+**Windows**: Registry configuration for global hotkeys  
+**macOS**: Accessibility preferences required  
+**Linux**: Window manager keybinding integration (configurable)
+
+---
+
+## Trackpad Integration
+
+### Supported Hardware
+
+**Apple Force Touch Trackpads**
+- Force sensing
+- Haptic feedback
+- Pressure detection
+- Multi-touch gestures
+
+**Windows Precision Touchpads**
+- Windows Precision standard
+- Gesture support
+- Haptic feedback (modern devices)
+
+**Linux libinput**
+- Standard libinput protocol
+- Gesture support
+- Multi-touch detection
+
+**ChromeOS**
+- Native trackpad support
+- Chrome OS gestures
+
+---
+
+## Gesture Engine
+
+Support for multi-touch gestures based on fingers used.
+
+### One Finger Gestures
+```
+Single tap      → Click
+Double tap      → Double click
+Tap & hold      → Right-click menu
+Swipe left      → Back
+Swipe right     → Forward
+Swipe up        → Scroll up
+Swipe down      → Scroll down
+```
+
+### Two Finger Gestures
+```
+Two-finger scroll       → Vertical/horizontal scroll
+Two-finger pinch in     → Zoom out
+Two-finger pinch out    → Zoom in
+Two-finger rotate       → Rotate (images/PDFs)
+Two-finger swipe left   → Close tab
+Two-finger swipe right  → Open tab
+Two-finger tap          → Secondary click
+```
+
+### Three Finger Gestures
+```
+Three-finger swipe up     → Workspace/mission control
+Three-finger swipe down   → Show all windows
+Three-finger swipe left   → Previous workspace
+Three-finger swipe right  → Next workspace
+Three-finger tap          → Open AI panel
+```
+
+### Four Finger Gestures
+```
+Four-finger swipe left    → Previous workspace
+Four-finger swipe right   → Next workspace
+Four-finger swipe up      → Activity view
+Four-finger swipe down    → Show desktop
+Four-finger tap           → Split screen
+```
+
+### Five Finger Gestures
+```
+Five-finger pinch         → Minimize window
+Five-finger spread        → Show all windows
+```
+
+---
+
+## Force Touch (Apple)
+
+Pressure-based interactions (Apple trackpads/Magic Mouse).
+
+### Actions
+```
+Light press (force < 40%)      → Preview link
+Medium press (force 40-70%)    → Show dictionary
+Hard press (force > 70%)       → AI explanation
+Very hard (force > 90%)        → Translate
+```
+
+### Context-Specific
+- **Links**: Preview page content
+- **Words**: Dictionary popup
+- **Images**: Metadata display
+- **Code**: Open documentation
+- **PDF**: Open annotation panel
+
+---
+
+## Swipe Gestures
+
+### Edge Swipes
+
+**Swipe from Left Edge**
+```
+Single swipe            → Go back
+Double swipe            → Go back 2 pages
+Slow swipe              → Reveal sidebar
+```
+
+**Swipe from Right Edge**
+```
+Single swipe            → Open AI panel
+Double swipe            → Open sidebar
+Slow swipe              → Show history
+```
+
+**Swipe from Top Edge**
+```
+Single swipe            → Open command palette
+Double swipe            → Open settings
+Slow swipe              → Hide UI
+```
+
+**Swipe from Bottom Edge**
+```
+Single swipe            → Show downloads
+Double swipe            → Show history
+Slow swipe              → Show bookmarks
+```
+
+---
+
+## Smart Gesture Recognition
+
+AI differentiates between intentional and accidental touches.
+
+### Differentiation
+```
+Fast swipe              → Intentional action
+Slow swipe              → Adjustment/fine-tuning
+Decisive drag           → Intentional movement
+Tentative drag          → Exploratory (preview)
+Palm contact            → Ignore (resting)
+Thumb contact           → Ignore (holding device)
+Finger hover            → Preview (no click)
+```
+
+### Learning
+- Learns user gesture patterns
+- Adapts sensitivity per user
+- Context-aware thresholds
+- Age/accessibility profile aware
+
+---
+
+## Haptic Feedback
+
+Supported devices provide tactile confirmation.
+
+### Events
+```
+Tab closed                      → Brief double vibration
+Download complete              → Rising vibration
+AI response ready              → Single strong pulse
+Gesture recognized             → Soft double tap
+Screenshot captured            → Triple vibration
+Notification received          → Single long vibration
+Permission granted/denied      → Distinct haptic
+Gesture not recognized         → Error vibration
+```
+
+### Intensity Control
+- Volume-like haptic control
+- User preference settings
+- Per-event customization
+- Accessibility profiles
+
+---
+
+## Multi-Touch AI
+
+AI understands gesture intent, not just replay.
+
+### Drawing Recognition
+```
+Circle gesture              → "Explain this"
+Rectangle selection         → "Extract text (OCR)"
+Underline gesture           → "Summarize text"
+Arrow gesture               → "Search related"
+Cross gesture               → "Delete/hide"
+Lasso gesture               → "Extract region"
+Scratch gesture             → "Remove ads"
+```
+
+### AI Interpretation
+- Recognizes intent, not movement
+- Suggests relevant actions
+- Learns from user corrections
+- Context-aware suggestions
+
+---
+
+## Gesture Customization
+
+Every gesture assignable.
+
+### Customization Options
+- Reassign to different actions
+- Call custom extensions
+- Execute macros
+- Run scripts
+- Trigger AI prompts
+- Open specific pages
+- Launch apps
+
+### Configuration
+```yaml
+gestures:
+  two_finger_swipe_left:
+    action: "next_tab"
+    alternate: "close_tab"
+    mode: "normal"
+    
+  three_finger_tap:
+    action: "custom_macro"
+    macro_id: "my_workflow"
+    
+  force_touch_hard:
+    action: "ai_assistant"
+    context: "semantic"
+```
+
+---
+
+## Device Detection
+
+Browser automatically detects and optimizes.
+
+### Detected Hardware
+```
+✓ Trackpad type (Apple, Windows Precision, libinput)
+✓ Mouse presence
+✓ Touchscreen
+✓ Stylus/Pen
+✓ Keyboard type (mechanical, membrane, laptop)
+✓ Gaming keyboard (RGB, macro keys)
+✓ Accessibility devices
+✓ Screen resolution & DPI
+✓ Refresh rate (60Hz, 120Hz, 144Hz)
+```
+
+### Adaptive UI
+- Adjusts gesture sensitivity
+- Shows appropriate affordances
+- Enables/disables features
+- Scales touch targets
+- Optimizes for hardware
+
+---
+
+## Performance
+
+### Latency Targets
+- **Gesture latency**: < 1 frame (16ms @ 60Hz)
+- **Keyboard response**: Instantaneous (< 8ms)
+- **Haptic feedback**: < 5ms
+- **Gesture recognition**: < 50ms
+- **No dropped gestures**: 99.9% accuracy
+
+### CPU Overhead
+- Gesture processing: < 1% CPU
+- Keyboard handling: < 0.5% CPU
+- Gesture recognition: < 2% CPU
+- Memory overhead: < 10MB
+
+---
+
+## Developer APIs
+
+### Keyboard Events
+```rust
+pub trait KeyboardListener {
+    fn on_key_down(&self, key: Key, modifiers: Modifiers);
+    fn on_key_up(&self, key: Key);
+    fn on_shortcut(&self, shortcut: &Shortcut);
+}
+```
+
+### Gesture Events
+```rust
+pub trait GestureListener {
+    fn on_gesture(&self, gesture: Gesture, pressure: f32);
+    fn on_gesture_start(&self, gesture: Gesture);
+    fn on_gesture_end(&self, gesture: Gesture, velocity: f32);
+}
+```
+
+### Extension API
+```rust
+pub trait InputExtension {
+    fn register_shortcut(&self, shortcut: Shortcut, handler: Box<dyn Fn()>);
+    fn register_gesture(&self, gesture: Gesture, handler: Box<dyn Fn(GestureData)>);
+    fn custom_keyboard_profile(&self, profile: KeyboardProfile);
+    fn custom_gesture_mapping(&self, mapping: GestureMapping);
+}
+```
+
+---
+
+## AI Enhancements
+
+### Local Learning (With User Consent)
+- Learns shortcut usage patterns
+- Suggests optimizations
+- Auto-creates macros from repetition
+- Context-aware command ordering
+- Personalized shortcut recommendations
+
+### Features
+```
+✓ Usage pattern analysis
+✓ Frequently-used gesture optimization
+✓ Macro creation from repetitive workflows
+✓ Context-aware command palette
+✓ Cross-device sync (optional)
+✓ Privacy-first (all local)
+```
+
+### User Control
+- Opt-in learning
+- View learning data
+- Delete learning data
+- Export patterns
+- Pause learning anytime
+
+---
+
+## Implementation Timeline
+
+### Phase 6a (Weeks 1-4): Foundation
+- [ ] Keyboard event handling framework
+- [ ] Shortcut registration system
+- [ ] Settings UI for customization
+- [ ] Default shortcut bindings
+- [ ] Command palette implementation
+
+### Phase 6b (Weeks 5-8): Trackpad
+- [ ] Gesture recognition engine
+- [ ] Multi-touch support
+- [ ] Haptic feedback integration
+- [ ] Platform-specific trackpad drivers
+- [ ] Gesture customization UI
+
+### Phase 6c (Weeks 9-12): AI & Polish
+- [ ] AI gesture interpretation
+- [ ] Macro recording/playback
+- [ ] Usage pattern learning
+- [ ] Performance optimization
+- [ ] Comprehensive testing
+
+---
+
+## Test Coverage
+
+### Unit Tests
+- 100+ keyboard shortcut tests
+- 100+ gesture recognition tests
+- 50+ macro operation tests
+- 50+ AI interpretation tests
+
+### Integration Tests
+- Cross-platform shortcut behavior
+- Trackpad gesture on all hardware
+- Macro execution workflows
+- Gesture customization apply
+
+### Platform-Specific Tests
+- Windows Precision Touchpad
+- macOS Force Touch
+- Linux libinput
+- ChromeOS trackpad
+
+---
+
+## Success Metrics
+
+### Adoption
+- [ ] 80% of power users use keyboard mode
+- [ ] 60% of users customize shortcuts
+- [ ] 40% of users create macros
+- [ ] 30% of gestures use multi-touch
+
+### Performance
+- [ ] Keyboard latency < 8ms (100%)
+- [ ] Gesture recognition 99.5% accuracy
+- [ ] No dropped inputs (99.99%)
+- [ ] CPU overhead < 2%
+
+### Satisfaction
+- [ ] User satisfaction > 4.5/5
+- [ ] Accessibility score A+
+- [ ] Zero keyboard-related bugs
+- [ ] No performance regressions
+
+---
+
+## Related Documentation
+
+- [PLATFORM_SPECIFIC.md](./PLATFORM_SPECIFIC.md) - Platform implementation details
+- [INSTALLATION.md](./INSTALLATION.md) - Installation guide
+- [ARCHITECTURE.md](./ARCHITECTURE.md) - Overall architecture
+
+---
+
+**Status**: Specification complete, awaiting Phase 6 implementation  
+**Next**: Create input module framework, platform-specific drivers
