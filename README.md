@@ -1,39 +1,87 @@
 # 🏔️ Himalayas Browser
 
-**The world's first truly agent-native browser platform.**
+**An AI-native browser platform for India's digital government stack.**
 
-Reaching the peak of what's possible when agents are first-class citizens.
+Enabling secure citizen services, enterprise workflows, and autonomous agent-assisted operations.
 
 ## Vision
 
-Most "AI browsers" are still human browsers with an AI assistant bolted on. **Himalayas Browser** inverts that model.
+Himalayas is not competing with Chrome.
 
-Instead of:
-- GUI-first architecture (user controls everything)
-- Agents as afterthoughts
-- Browser optimized for humans viewing websites
+**Himalayas is building the automation layer for India's digital government stack.**
 
-Himalayas provides:
-- **Runtime-first architecture** (agents execute autonomously)
-- **Agents as native citizens** (equal to human users)
-- **Browser as operating system** (not just a viewer)
-- **Headless by default** (GUI is an optional client)
-- **Privacy-first by design** (private sessions by default)
-- **Security-first by enforcement** (zero-trust throughout)
+### The Problem
+
+Citizens and enterprises spend days filling government forms, gathering documents, verifying eligibility, and submitting applications.
+
+Government services are:
+- Time-consuming (days/weeks)
+- Error-prone (manual data entry)
+- Fragmented (multiple portals, DigiLocker, eSign, etc.)
+- Inaccessible to regional language speakers
+- Impossible to audit completely
+
+### The Solution
+
+An AI-native browser where agents handle government workflows:
+
+**Citizen**: "I need to renew my driving license"
+```
+AI Agent (temporary, sandboxed):
+  ├─ Authenticate via Aadhaar
+  ├─ Retrieve documents from DigiLocker
+  ├─ Fill renewal form
+  ├─ Request approval
+  ├─ Sign with eSign
+  ├─ Submit to RTO
+  └─ Provide audit receipt
+
+Result: Complete in minutes, verified, auditable
+```
+
+### Core Principles
+
+- **Runtime-First**: Agents execute autonomously
+- **India Stack Native**: Deep integration (DigiLocker, eSign, Aadhaar)
+- **Government-Grade Security**: Zero-trust, complete audit
+- **Privacy by Architecture**: Ephemeral agents, no persistence
+- **Regional Languages**: Hindi, Tamil, Telugu natively (not translations)
+- **Headless by Default**: Automation is primary, GUI optional
 
 ## What is Himalayas?
 
-**Himalayas Browser** is a headless browser with attached frontends.
+**Himalayas** is an **AI-native automation platform** for India's digital government stack.
 
-It's an **agent-native browser platform** where:
+### Architecture
 
-1. **Default mode**: Headless (efficient, serverless, no GUI overhead)
-2. **Optional frontends**: Desktop, web, mobile, or CLI — attach when needed
-3. **Agents run autonomously** in the runtime
-4. **Humans approve decisions** through optional debugger GUI (not required for execution)
-5. **Everything is auditable** with complete provenance
-6. **Privacy by default** (private sessions, no tracking, auto-delete)
-7. **Security enforced** (zero-trust, time-bound permissions, isolated agents)
+```
+Himalayas Browser
+├── Agent Runtime (execute workflows autonomously)
+├── India Stack Integration (DigiLocker, eSign, Aadhaar)
+├── Document Intelligence (form understanding, OCR)
+├── Security Kernel (ephemeral agents, audit logs)
+└── National Language Layer (Hindi, Tamil, Telugu, etc.)
+```
+
+### How It Works
+
+1. **Citizen Request**: "I need to renew my license"
+2. **Agent Spawned**: Temporary agent with scoped permissions
+3. **Workflow Executed**: Authenticate → Retrieve docs → Fill form → Sign → Submit
+4. **Complete Audit**: Every action logged with full provenance
+5. **Agent Destroyed**: Credentials revoked, memory sanitized, permission expired
+6. **Result**: Audit receipt provided to user
+
+### Key Capabilities
+
+- ✅ Automate government workflows (DigiLocker, eSign, government portals)
+- ✅ Fill complex forms (PAN, Aadhar, GST, ITR, etc.)
+- ✅ Retrieve documents from DigiLocker
+- ✅ Sign documents digitally
+- ✅ Support all Indian languages natively
+- ✅ Voice interaction and approval
+- ✅ Complete audit trails for compliance
+- ✅ Ephemeral agents (no persistence, no secrets stored)
 
 ## Quick Links
 
