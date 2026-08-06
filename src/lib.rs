@@ -4,4 +4,5 @@ pub mod browser;
 pub mod daemon;
 pub mod health;
 pub mod metrics;
+pub mod permission;
 pub mod server;

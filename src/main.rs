@@ -8,6 +8,7 @@ mod browser;
 mod daemon;
 mod health;
 mod metrics;
+mod permission;
 mod server;
 
 #[derive(Parser, Debug)]
