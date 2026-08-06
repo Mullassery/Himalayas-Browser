@@ -1,6 +1,7 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
+#[derive(Clone)]
 pub struct MetricsCollector {
     request_count: Arc<AtomicU64>,
     error_count: Arc<AtomicU64>,

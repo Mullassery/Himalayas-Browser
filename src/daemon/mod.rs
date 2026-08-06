@@ -2,12 +2,15 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use std::path::Path;
+use std::sync::Arc;
 use uuid::Uuid;
 use tracing::info;
 
-mod lifecycle;
+use crate::health::HealthMonitor;
+use crate::metrics::MetricsCollector;
+use crate::server::HealthServer;
 
-pub use lifecycle::*;
+mod lifecycle;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
@@ -53,6 +56,8 @@ impl Default for Config {
 pub struct Daemon {
     config: Config,
     health_server: SocketAddr,
+    health_monitor: Arc<HealthMonitor>,
+    metrics_collector: Arc<MetricsCollector>,
 }
 
 impl Daemon {
@@ -67,6 +72,8 @@ impl Daemon {
         Ok(Self {
             config,
             health_server: addr,
+            health_monitor: Arc::new(HealthMonitor::new()),
+            metrics_collector: Arc::new(MetricsCollector::new()),
         })
     }
 
@@ -78,14 +85,38 @@ impl Daemon {
         &self.config.id
     }
 
-    pub async fn run(&self) -> Result<()> {
-        info!("Starting health monitoring server on {}", self.health_server);
+    pub fn health_monitor(&self) -> Arc<HealthMonitor> {
+        self.health_monitor.clone()
+    }
+
+    pub fn metrics_collector(&self) -> Arc<MetricsCollector> {
+        self.metrics_collector.clone()
+    }
+
+    pub async fn run(self) -> Result<()> {
         info!("Daemon running - Phase 0 Foundation");
         info!("Daemon ID: {}", self.config.id);
         info!("Environment: {}", self.config.environment);
 
-        loop {
-            tokio::time::sleep(tokio::time::Duration::from_secs(60)).await;
-        }
+        // Create health server
+        let health_server = HealthServer::new(
+            self.health_monitor.clone(),
+            self.metrics_collector.clone(),
+        );
+
+        let server_addr = self.health_server;
+        info!("Starting health monitoring server on {}", server_addr);
+
+        // Spawn health server task
+        let server_handle = tokio::spawn(async move {
+            if let Err(e) = health_server.start(server_addr).await {
+                eprintln!("Health server error: {}", e);
+            }
+        });
+
+        // Keep daemon running
+        server_handle.await?;
+
+        Ok(())
     }
 }

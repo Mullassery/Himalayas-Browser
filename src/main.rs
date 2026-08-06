@@ -5,6 +5,7 @@ use tracing::info;
 mod daemon;
 mod health;
 mod metrics;
+mod server;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about = "Himalayas Browser - Agent-Native Operating System", long_about = None)]
