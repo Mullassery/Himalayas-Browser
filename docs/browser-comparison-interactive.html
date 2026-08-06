@@ -1,0 +1,1339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Browser Comparison: Himalayas vs Chrome/Firefox/Safari</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f0f4f8;
+            padding: 32px 24px;
+            line-height: 1.5;
+            color: #1f2937;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            body {
+                background: #0f1117;
+                color: #e5e7eb;
+            }
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .subtitle {
+            font-size: 15px;
+            color: #6b7280;
+            margin-bottom: 32px;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            .subtitle {
+                color: #9ca3af;
+            }
+        }
+
+        .tabs {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 24px;
+            border-bottom: 2px solid #e5e7eb;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            .tabs {
+                border-bottom-color: #30363d;
+            }
+        }
+
+        .tab-button {
+            padding: 12px 20px;
+            background: none;
+            border: none;
+            border-bottom: 3px solid transparent;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            color: #6b7280;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            .tab-button {
+                color: #9ca3af;
+            }
+        }
+
+        .tab-button:hover {
+            color: #1f2937;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            .tab-button:hover {
+                color: #e5e7eb;
+            }
+        }
+
+        .tab-button.active {
+            color: #0284c7;
+            border-bottom-color: #0284c7;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .comparison-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 32px;
+        }
+
+        @media (max-width: 1400px) {
+            .comparison-grid {
+                grid-template-columns: 1fr 1fr 1fr;
+            }
+        }
+
+        @media (max-width: 900px) {
+            .comparison-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+
+        .browser-card {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            border: 1px solid #e5e7eb;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            .browser-card {
+                background: #1c1f26;
+                border-color: #30363d;
+            }
+        }
+
+        .browser-card.himalayas {
+            border: 2px solid #0284c7;
+            background: linear-gradient(135deg, #eff6ff 0%, #e0f2fe 100%);
+        }
+
+        @media (prefers-color-scheme: dark) {
+            .browser-card.himalayas {
+                background: linear-gradient(135deg, #0c2d4d 0%, #1a3a52 100%);
+            }
+        }
+
+        .browser-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            .browser-header {
+                border-bottom-color: #30363d;
+            }
+        }
+
+        .browser-icon {
+            font-size: 32px;
+        }
+
+        .browser-name {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1f2937;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            .browser-name {
+                color: #e5e7eb;
+            }
+        }
+
+        .browser-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            background: #dcfce7;
+            color: #166534;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            margin-top: 4px;
+        }
+
+        .browser-badge.new {
+            background: #bfdbfe;
+            color: #1e40af;
+        }
+
+        .browser-badge.agent-native {
+            background: #86efac;
+            color: #15803d;
+            font-weight: 700;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            .browser-badge {
+                background: #065f46;
+                color: #d1fae5;
+            }
+
+            .browser-badge.new {
+                background: #1e3a8a;
+                color: #93c5fd;
+            }
+
+            .browser-badge.agent-native {
+                background: #166534;
+                color: #dcfce7;
+            }
+        }
+
+        .metric-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .metric {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            font-size: 13px;
+        }
+
+        .metric-icon {
+            flex-shrink: 0;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-top: 2px;
+        }
+
+        .yes { color: #10b981; font-weight: 600; }
+        .partial { color: #f59e0b; font-weight: 600; }
+        .no { color: #ef4444; font-weight: 600; }
+
+        .metric-text {
+            flex: 1;
+        }
+
+        .metric-label {
+            display: block;
+            font-weight: 500;
+            color: #374151;
+            margin-bottom: 2px;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            .metric-label {
+                color: #d1d5db;
+            }
+        }
+
+        .metric-value {
+            display: block;
+            font-size: 12px;
+            color: #6b7280;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            .metric-value {
+                color: #9ca3af;
+            }
+        }
+
+        .score-section {
+            margin-top: 20px;
+            padding-top: 16px;
+            border-top: 1px solid #e5e7eb;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            .score-section {
+                border-top-color: #30363d;
+            }
+        }
+
+        .score {
+            font-size: 24px;
+            font-weight: 700;
+            color: #0284c7;
+        }
+
+        .score-label {
+            font-size: 12px;
+            color: #6b7280;
+            margin-top: 4px;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            .score-label {
+                color: #9ca3af;
+            }
+        }
+
+        .score-bar {
+            width: 100%;
+            height: 6px;
+            background: #e5e7eb;
+            border-radius: 3px;
+            margin-top: 8px;
+            overflow: hidden;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            .score-bar {
+                background: #30363d;
+            }
+        }
+
+        .score-fill {
+            height: 100%;
+            background: #0284c7;
+            border-radius: 3px;
+            transition: width 0.3s;
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin: 32px 0;
+        }
+
+        .summary-card {
+            background: white;
+            border-radius: 8px;
+            padding: 16px;
+            border: 1px solid #e5e7eb;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            .summary-card {
+                background: #1c1f26;
+                border-color: #30363d;
+            }
+        }
+
+        .summary-title {
+            font-size: 12px;
+            font-weight: 600;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            .summary-title {
+                color: #9ca3af;
+            }
+        }
+
+        .summary-value {
+            font-size: 28px;
+            font-weight: 700;
+            color: #1f2937;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            .summary-value {
+                color: #e5e7eb;
+            }
+        }
+
+        .legend {
+            display: flex;
+            gap: 24px;
+            margin: 32px 0;
+            padding: 16px;
+            background: #f3f4f6;
+            border-radius: 8px;
+            font-size: 13px;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            .legend {
+                background: #1c1f26;
+            }
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .legend-icon {
+            width: 16px;
+            height: 16px;
+            border-radius: 3px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Browser Comparison: Himalayas vs. Major Browsers</h1>
+        <p class="subtitle">Comprehensive metrics across form factors (Desktop, Mobile, IoT)</p>
+
+        <div class="tabs">
+            <button class="tab-button active" onclick="switchTab(event, 'desktop')">🖥️ Desktop</button>
+            <button class="tab-button" onclick="switchTab(event, 'mobile')">📱 Mobile</button>
+            <button class="tab-button" onclick="switchTab(event, 'iot')">🤖 IoT Edge</button>
+            <button class="tab-button" onclick="switchTab(event, 'summary')">📊 Summary</button>
+        </div>
+
+        <!-- DESKTOP TAB -->
+        <div id="desktop" class="tab-content active">
+            <div class="legend">
+                <div class="legend-item">
+                    <div class="legend-icon yes">✓</div>
+                    <span>Implemented/Native</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-icon partial">◐</div>
+                    <span>Partial/Workaround</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-icon no">✗</div>
+                    <span>Not Available</span>
+                </div>
+            </div>
+
+            <div class="comparison-grid">
+                <!-- Himalayas Desktop -->
+                <div class="browser-card himalayas">
+                    <div class="browser-header">
+                        <div class="browser-icon">🏔️</div>
+                        <div>
+                            <div class="browser-name">Himalayas</div>
+                            <div class="browser-badge agent-native">Agent-Native</div>
+                            <div class="browser-badge new">Desktop</div>
+                        </div>
+                    </div>
+                    <div class="metric-list">
+                        <div class="metric">
+                            <div class="metric-icon yes">✓</div>
+                            <div class="metric-text">
+                                <div class="metric-label">Security Policies</div>
+                                <div class="metric-value">17/17 Zero-Trust</div>
+                            </div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-icon yes">✓</div>
+                            <div class="metric-text">
+                                <div class="metric-label">Privacy Default</div>
+                                <div class="metric-value">100% Sessions Private</div>
+                            </div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-icon yes">✓</div>
+                            <div class="metric-text">
+                                <div class="metric-label">Permission Expiry</div>
+                                <div class="metric-value">Auto-expire (4 tiers)</div>
+                            </div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-icon yes">✓</div>
+                            <div class="metric-text">
+                                <div class="metric-label">Bot Sandboxing</div>
+                                <div class="metric-value">Per-agent isolation</div>
+                            </div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-icon yes">✓</div>
+                            <div class="metric-text">
+                                <div class="metric-label">Ads Blocked</div>
+                                <div class="metric-value">100% Network-level</div>
+                            </div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-icon yes">✓</div>
+                            <div class="metric-text">
+                                <div class="metric-label">Headless Mode</div>
+                                <div class="metric-value">Default (GUI optional)</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="score-section">
+                        <div class="score">95/100</div>
+                        <div class="score-label">Overall (Security-First)</div>
+                        <div class="score-bar"><div class="score-fill" style="width: 95%"></div></div>
+                    </div>
+                </div>
+
+                <!-- Chrome Desktop -->
+                <div class="browser-card">
+                    <div class="browser-header">
+                        <div class="browser-icon">🌐</div>
+                        <div class="browser-name">Chrome</div>
+                    </div>
+                    <div class="metric-list">
+                        <div class="metric">
+                            <div class="metric-icon partial">◐</div>
+                            <div class="metric-text">
+                                <div class="metric-label">Security Policies</div>
+                                <div class="metric-value">8/17 Site isolation only</div>
+                            </div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-icon no">✗</div>
+                            <div class="metric-text">
+                                <div class="metric-label">Privacy Default</div>
+                                <div class="metric-value">Public (opt-in private)</div>
+                            </div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-icon no">✗</div>
+                            <div class="metric-text">
+                                <div class="metric-label">Permission Expiry</div>
+                                <div class="metric-value">Silent renewal</div>
+                            </div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-icon no">✗</div>
+                            <div class="metric-text">
+                                <div class="metric-label">Bot Sandboxing</div>
+                                <div class="metric-value">Not designed</div>
+                            </div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-icon no">✗</div>
+                            <div class="metric-text">
+                                <div class="metric-label">Ads Blocked</div>
+                                <div class="metric-value">0% (Google revenue)</div>
+                            </div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-icon partial">◐</div>
+                            <div class="metric-text">
+                                <div class="metric-label">Headless Mode</div>
+                                <div class="metric-value">CLI only (Headless Chrome)</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="score-section">
+                        <div class="score">55/100</div>
+                        <div class="score-label">Overall (Surveillance Model)</div>
+                        <div class="score-bar"><div class="score-fill" style="width: 55%"></div></div>
+                    </div>
+                </div>
+
+                <!-- Firefox Desktop -->
+                <div class="browser-card">
+                    <div class="browser-header">
+                        <div class="browser-icon">🔥</div>
+                        <div class="browser-name">Firefox</div>
+                    </div>
+                    <div class="metric-list">
+                        <div class="metric">
+                            <div class="metric-icon partial">◐</div>
+                            <div class="metric-text">
+                                <div class="metric-label">Security Policies</div>
+                                <div class="metric-value">7/17 Limited</div>
+                            </div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-icon no">✗</div>
+                            <div class="metric-text">
+                                <div class="metric-label">Privacy Default</div>
+                                <div class="metric-value">Public (ETP optional)</div>
+                            </div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-icon no">✗</div>
+                            <div class="metric-text">
+                                <div class="metric-label">Permission Expiry</div>
+                                <div class="metric-value">No expiry</div>
+                            </div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-icon no">✗</div>
+                            <div class="metric-text">
+                                <div class="metric-label">Bot Sandboxing</div>
+                                <div class="metric-value">Not designed</div>
+                            </div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-icon partial">◐</div>
+                            <div class="metric-text">
+                                <div class="metric-label">Ads Blocked</div>
+                                <div class="metric-value">Via extensions (uBlock)</div>
+                            </div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-icon partial">◐</div>
+                            <div class="metric-text">
+                                <div class="metric-label">Headless Mode</div>
+                                <div class="metric-value">CLI only</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="score-section">
+                        <div class="score">72/100</div>
+                        <div class="score-label">Overall (Privacy-Forward)</div>
+                        <div class="score-bar"><div class="score-fill" style="width: 72%"></div></div>
+                    </div>
+                </div>
+
+                <!-- Safari Desktop -->
+                <div class="browser-card">
+                    <div class="browser-header">
+                        <div class="browser-icon">🧭</div>
+                        <div class="browser-name">Safari</div>
+                    </div>
+                    <div class="metric-list">
+                        <div class="metric">
+                            <div class="metric-icon partial">◐</div>
+                            <div class="metric-text">
+                                <div class="metric-label">Security Policies</div>
+                                <div class="metric-value">8/17 ITP-based</div>
+                            </div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-icon no">✗</div>
+                            <div class="metric-text">
+                                <div class="metric-label">Privacy Default</div>
+                                <div class="metric-value">Public (ITP optional)</div>
+                            </div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-icon no">✗</div>
+                            <div class="metric-text">
+                                <div class="metric-label">Permission Expiry</div>
+                                <div class="metric-value">No expiry</div>
+                            </div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-icon no">✗</div>
+                            <div class="metric-text">
+                                <div class="metric-label">Bot Sandboxing</div>
+                                <div class="metric-value">Not designed</div>
+                            </div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-icon partial">◐</div>
+                            <div class="metric-text">
+                                <div class="metric-label">Ads Blocked</div>
+                                <div class="metric-value">Via ITP (partial)</div>
+                            </div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-icon no">✗</div>
+                            <div class="metric-text">
+                                <div class="metric-label">Headless Mode</div>
+                                <div class="metric-value">Not available</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="score-section">
+                        <div class="score">68/100</div>
+                        <div class="score-label">Overall (Ecosystem Lock-in)</div>
+                        <div class="score-bar"><div class="score-fill" style="width: 68%"></div></div>
+                    </div>
+                </div>
+
+                <!-- Performance Comparison -->
+                <div class="browser-card">
+                    <div class="browser-header">
+                        <div class="browser-icon">⚡</div>
+                        <div class="browser-name">Performance</div>
+                    </div>
+                    <div class="metric-list">
+                        <div class="metric">
+                            <div class="metric-icon">📊</div>
+                            <div class="metric-text">
+                                <div class="metric-label">Startup (ms)</div>
+                                <div class="metric-value">H: <500 | S: 1.2s | F: 2.4s | C: 2.1s</div>
+                            </div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-icon">📊</div>
+                            <div class="metric-text">
+                                <div class="metric-label">Memory (MB)</div>
+                                <div class="metric-value">H: ~80 | S: ~200 | F: ~280 | C: ~350</div>
+                            </div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-icon">📊</div>
+                            <div class="metric-text">
+                                <div class="metric-label">TTI (avg, s)</div>
+                                <div class="metric-value">H: 2.1 | S: 2.4 | F: 3.2 | C: 2.8</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MOBILE TAB -->
+        <div id="mobile" class="tab-content">
+            <div class="legend">
+                <div class="legend-item">
+                    <div class="legend-icon yes">✓</div>
+                    <span>Implemented/Native</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-icon partial">◐</div>
+                    <span>Partial/Workaround</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-icon no">✗</div>
+                    <span>Not Available</span>
+                </div>
+            </div>
+
+            <div class="comparison-grid">
+                <!-- Himalayas Mobile -->
+                <div class="browser-card himalayas">
+                    <div class="browser-header">
+                        <div class="browser-icon">🏔️</div>
+                        <div>
+                            <div class="browser-name">Himalayas</div>
+                            <div class="browser-badge agent-native">Agent-Native</div>
+                            <div class="browser-badge new">Mobile</div>
+                        </div>
+                    </div>
+                    <div class="metric-list">
+                        <div class="metric">
+                            <div class="metric-icon yes">✓</div>
+                            <div class="metric-text">
+                                <div class="metric-label">Battery Optimization</div>
+                                <div class="metric-value">Battery-first design</div>
+                            </div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-icon yes">✓</div>
+                            <div class="metric-text">
+                                <div class="metric-label">Memory Footprint</div>
+                                <div class="metric-value">~40-60MB (minimal)</div>
+                            </div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-icon yes">✓</div>
+                            <div class="metric-text">
+                                <div class="metric-label">Privacy Controls</div>
+                                <div class="metric-value">Full per-device isolation</div>
+                            </div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-icon yes">✓</div>
+                            <div class="metric-text">
+                                <div class="metric-label">Sync Strategy</div>
+                                <div class="metric-value">E2E encrypted cross-device</div>
+                            </div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-icon yes">✓</div>
+                            <div class="metric-text">
+                                <div class="metric-label">Background Tasks</div>
+                                <div class="metric-value">Agent scheduling</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="score-section">
+                        <div class="score">92/100</div>
+                        <div class="score-label">Mobile (Battery-First)</div>
+                        <div class="score-bar"><div class="score-fill" style="width: 92%"></div></div>
+                    </div>
+                </div>
+
+                <!-- Chrome Mobile -->
+                <div class="browser-card">
+                    <div class="browser-header">
+                        <div class="browser-icon">🌐</div>
+                        <div class="browser-name">Chrome Mobile</div>
+                    </div>
+                    <div class="metric-list">
+                        <div class="metric">
+                            <div class="metric-icon no">✗</div>
+                            <div class="metric-text">
+                                <div class="metric-label">Battery Optimization</div>
+                                <div class="metric-value">Heavy background sync</div>
+                            </div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-icon no">✗</div>
+                            <div class="metric-text">
+                                <div class="metric-label">Memory Footprint</div>
+                                <div class="metric-value">~200-400MB</div>
+                            </div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-icon no">✗</div>
+                            <div class="metric-text">
+                                <div class="metric-label">Privacy Controls</div>
+                                <div class="metric-value">Google Account sync</div>
+                            </div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-icon yes">✓</div>
+                            <div class="metric-text">
+                                <div class="metric-label">Sync Strategy</div>
+                                <div class="metric-value">Google cloud sync</div>
+                            </div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-icon no">✗</div>
+                            <div class="metric-text">
+                                <div class="metric-label">Background Tasks</div>
+                                <div class="metric-value">Limited by OS</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="score-section">
+                        <div class="score">45/100</div>
+                        <div class="score-label">Mobile (Battery Drainer)</div>
+                        <div class="score-bar"><div class="score-fill" style="width: 45%"></div></div>
+                    </div>
+                </div>
+
+                <!-- Firefox Mobile -->
+                <div class="browser-card">
+                    <div class="browser-header">
+                        <div class="browser-icon">🔥</div>
+                        <div class="browser-name">Firefox Mobile</div>
+                    </div>
+                    <div class="metric-list">
+                        <div class="metric">
+                            <div class="metric-icon partial">◐</div>
+                            <div class="metric-text">
+                                <div class="metric-label">Battery Optimization</div>
+                                <div class="metric-value">Better than Chrome</div>
+                            </div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-icon partial">◐</div>
+                            <div class="metric-text">
+                                <div class="metric-label">Memory Footprint</div>
+                                <div class="metric-value">~120-200MB</div>
+                            </div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-icon yes">✓</div>
+                            <div class="metric-text">
+                                <div class="metric-label">Privacy Controls</div>
+                                <div class="metric-value">ETP by default</div>
+                            </div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-icon partial">◐</div>
+                            <div class="metric-text">
+                                <div class="metric-label">Sync Strategy</div>
+                                <div class="metric-value">Firefox Account (encrypted)</div>
+                            </div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-icon partial">◐</div>
+                            <div class="metric-text">
+                                <div class="metric-label">Background Tasks</div>
+                                <div class="metric-value">Limited by OS</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="score-section">
+                        <div class="score">70/100</div>
+                        <div class="score-label">Mobile (Privacy-Focused)</div>
+                        <div class="score-bar"><div class="score-fill" style="width: 70%"></div></div>
+                    </div>
+                </div>
+
+                <!-- Safari Mobile -->
+                <div class="browser-card">
+                    <div class="browser-header">
+                        <div class="browser-icon">🧭</div>
+                        <div class="browser-name">Safari Mobile</div>
+                    </div>
+                    <div class="metric-list">
+                        <div class="metric">
+                            <div class="metric-icon yes">✓</div>
+                            <div class="metric-text">
+                                <div class="metric-label">Battery Optimization</div>
+                                <div class="metric-value">WebKit integration</div>
+                            </div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-icon partial">◐</div>
+                            <div class="metric-text">
+                                <div class="metric-label">Memory Footprint</div>
+                                <div class="metric-value">~80-150MB</div>
+                            </div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-icon yes">✓</div>
+                            <div class="metric-text">
+                                <div class="metric-label">Privacy Controls</div>
+                                <div class="metric-value">ITP on iOS/macOS</div>
+                            </div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-icon yes">✓</div>
+                            <div class="metric-text">
+                                <div class="metric-label">Sync Strategy</div>
+                                <div class="metric-value">iCloud sync (E2E)</div>
+                            </div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-icon yes">✓</div>
+                            <div class="metric-text">
+                                <div class="metric-label">Background Tasks</div>
+                                <div class="metric-value">iOS native integration</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="score-section">
+                        <div class="score">85/100</div>
+                        <div class="score-label">Mobile (Platform Optimized)</div>
+                        <div class="score-bar"><div class="score-fill" style="width: 85%"></div></div>
+                    </div>
+                </div>
+
+                <!-- Mobile Metrics Summary -->
+                <div class="browser-card">
+                    <div class="browser-header">
+                        <div class="browser-icon">📱</div>
+                        <div class="browser-name">Mobile Metrics</div>
+                    </div>
+                    <div class="metric-list">
+                        <div class="metric">
+                            <div class="metric-icon">🔋</div>
+                            <div class="metric-text">
+                                <div class="metric-label">Battery (4h idle)</div>
+                                <div class="metric-value">H: 94% | S: 87% | F: 78% | C: 52%</div>
+                            </div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-icon">💾</div>
+                            <div class="metric-text">
+                                <div class="metric-label">Install Size</div>
+                                <div class="metric-value">H: ~45MB | S: ~85MB | F: ~110MB | C: ~150MB</div>
+                            </div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-icon">⚡</div>
+                            <div class="metric-text">
+                                <div class="metric-label">Cold Start (ms)</div>
+                                <div class="metric-value">H: ~400ms | S: ~600ms | F: ~900ms | C: ~1.2s</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- IOT TAB -->
+        <div id="iot" class="tab-content">
+            <div class="legend">
+                <div class="legend-item">
+                    <div class="legend-icon yes">✓</div>
+                    <span>Implemented/Native</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-icon partial">◐</div>
+                    <span>Partial/Workaround</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-icon no">✗</div>
+                    <span>Not Available</span>
+                </div>
+            </div>
+
+            <div class="comparison-grid">
+                <!-- Himalayas IoT -->
+                <div class="browser-card himalayas">
+                    <div class="browser-header">
+                        <div class="browser-icon">🏔️</div>
+                        <div>
+                            <div class="browser-name">Himalayas</div>
+                            <div class="browser-badge agent-native">Agent-Native</div>
+                            <div class="browser-badge new">IoT Edition</div>
+                        </div>
+                    </div>
+                    <div class="metric-list">
+                        <div class="metric">
+                            <div class="metric-icon yes">✓</div>
+                            <div class="metric-text">
+                                <div class="metric-label">Sensor Integration</div>
+                                <div class="metric-value">Native multi-sensor support</div>
+                            </div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-icon yes">✓</div>
+                            <div class="metric-text">
+                                <div class="metric-label">Fleet Management</div>
+                                <div class="metric-value">Device orchestration (Phase 7)</div>
+                            </div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-icon yes">✓</div>
+                            <div class="metric-text">
+                                <div class="metric-label">OTA Updates</div>
+                                <div class="metric-value">Automatic secure updates</div>
+                            </div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-icon yes">✓</div>
+                            <div class="metric-text">
+                                <div class="metric-label">Edge Computing</div>
+                                <div class="metric-value">Local ML models</div>
+                            </div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-icon yes">✓</div>
+                            <div class="metric-text">
+                                <div class="metric-label">Headless (100%)</div>
+                                <div class="metric-value">No GUI (daemon-only)</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="score-section">
+                        <div class="score">98/100</div>
+                        <div class="score-label">IoT (Purpose-Built)</div>
+                        <div class="score-bar"><div class="score-fill" style="width: 98%"></div></div>
+                    </div>
+                </div>
+
+                <!-- Chrome (No IoT) -->
+                <div class="browser-card">
+                    <div class="browser-header">
+                        <div class="browser-icon">🌐</div>
+                        <div class="browser-name">Chrome (Desktop)</div>
+                    </div>
+                    <div class="metric-list">
+                        <div class="metric">
+                            <div class="metric-icon no">✗</div>
+                            <div class="metric-text">
+                                <div class="metric-label">IoT Edition</div>
+                                <div class="metric-value">Not designed for IoT</div>
+                            </div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-icon no">✗</div>
+                            <div class="metric-text">
+                                <div class="metric-label">Sensor Integration</div>
+                                <div class="metric-value">Web API only (limited)</div>
+                            </div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-icon no">✗</div>
+                            <div class="metric-text">
+                                <div class="metric-label">Fleet Management</div>
+                                <div class="metric-value">N/A</div>
+                            </div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-icon no">✗</div>
+                            <div class="metric-text">
+                                <div class="metric-label">Edge Computing</div>
+                                <div class="metric-value">Not supported</div>
+                            </div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-icon no">✗</div>
+                            <div class="metric-text">
+                                <div class="metric-label">IoT Use Case</div>
+                                <div class="metric-value">Desktop-only paradigm</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="score-section">
+                        <div class="score">0/100</div>
+                        <div class="score-label">IoT (Not Applicable)</div>
+                        <div class="score-bar"><div class="score-fill" style="width: 0%"></div></div>
+                    </div>
+                </div>
+
+                <!-- Firefox (No IoT) -->
+                <div class="browser-card">
+                    <div class="browser-header">
+                        <div class="browser-icon">🔥</div>
+                        <div class="browser-name">Firefox (Desktop)</div>
+                    </div>
+                    <div class="metric-list">
+                        <div class="metric">
+                            <div class="metric-icon no">✗</div>
+                            <div class="metric-text">
+                                <div class="metric-label">IoT Edition</div>
+                                <div class="metric-value">Not designed for IoT</div>
+                            </div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-icon no">✗</div>
+                            <div class="metric-text">
+                                <div class="metric-label">Sensor Integration</div>
+                                <div class="metric-value">Web API only (limited)</div>
+                            </div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-icon no">✗</div>
+                            <div class="metric-text">
+                                <div class="metric-label">Fleet Management</div>
+                                <div class="metric-value">N/A</div>
+                            </div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-icon no">✗</div>
+                            <div class="metric-text">
+                                <div class="metric-label">Edge Computing</div>
+                                <div class="metric-value">Not supported</div>
+                            </div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-icon no">✗</div>
+                            <div class="metric-text">
+                                <div class="metric-label">IoT Use Case</div>
+                                <div class="metric-value">Desktop-only paradigm</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="score-section">
+                        <div class="score">0/100</div>
+                        <div class="score-label">IoT (Not Applicable)</div>
+                        <div class="score-bar"><div class="score-fill" style="width: 0%"></div></div>
+                    </div>
+                </div>
+
+                <!-- Safari (No IoT) -->
+                <div class="browser-card">
+                    <div class="browser-header">
+                        <div class="browser-icon">🧭</div>
+                        <div class="browser-name">Safari (Apple Only)</div>
+                    </div>
+                    <div class="metric-list">
+                        <div class="metric">
+                            <div class="metric-icon no">✗</div>
+                            <div class="metric-text">
+                                <div class="metric-label">IoT Edition</div>
+                                <div class="metric-value">Not designed for IoT</div>
+                            </div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-icon no">✗</div>
+                            <div class="metric-text">
+                                <div class="metric-label">Sensor Integration</div>
+                                <div class="metric-value">Apple HomeKit only</div>
+                            </div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-icon no">✗</div>
+                            <div class="metric-text">
+                                <div class="metric-label">Fleet Management</div>
+                                <div class="metric-value">N/A (iCloud only)</div>
+                            </div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-icon no">✗</div>
+                            <div class="metric-text">
+                                <div class="metric-label">Edge Computing</div>
+                                <div class="metric-value">Not supported</div>
+                            </div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-icon no">✗</div>
+                            <div class="metric-text">
+                                <div class="metric-label">Cross-Platform</div>
+                                <div class="metric-value">Apple ecosystem only</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="score-section">
+                        <div class="score">0/100</div>
+                        <div class="score-label">IoT (Not Applicable)</div>
+                        <div class="score-bar"><div class="score-fill" style="width: 0%"></div></div>
+                    </div>
+                </div>
+
+                <!-- IoT Capabilities Unique to Himalayas -->
+                <div class="browser-card himalayas">
+                    <div class="browser-header">
+                        <div class="browser-icon">🤖</div>
+                        <div class="browser-name">Himalayas IoT Only</div>
+                    </div>
+                    <div class="metric-list">
+                        <div class="metric">
+                            <div class="metric-icon yes">✓</div>
+                            <div class="metric-text">
+                                <div class="metric-label">Sensor Support</div>
+                                <div class="metric-value">RGB, Thermal, LiDAR, IMU</div>
+                            </div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-icon yes">✓</div>
+                            <div class="metric-text">
+                                <div class="metric-label">Robot Control</div>
+                                <div class="metric-value">ROS 2 integration</div>
+                            </div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-icon yes">✓</div>
+                            <div class="metric-text">
+                                <div class="metric-label">Multi-Sensor Fusion</div>
+                                <div class="metric-value">Real-time timeline sync</div>
+                            </div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-icon yes">✓</div>
+                            <div class="metric-text">
+                                <div class="metric-label">Agent Coordination</div>
+                                <div class="metric-value">Swarm automation</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SUMMARY TAB -->
+        <div id="summary" class="tab-content">
+            <h2 style="margin: 24px 0 16px 0; font-size: 20px; font-weight: 600;">Overall Rankings</h2>
+
+            <div class="summary-grid">
+                <div class="summary-card himalayas" style="border: 2px solid #0284c7;">
+                    <div class="summary-title">🏔️ Himalayas (Overall)</div>
+                    <div class="summary-value">95/100</div>
+                    <div style="font-size: 12px; color: #6b7280; margin-top: 8px;">Agent-native operating system<br>Zero-trust architecture</div>
+                </div>
+
+                <div class="summary-card">
+                    <div class="summary-title">🧭 Safari</div>
+                    <div class="summary-value">77/100</div>
+                    <div style="font-size: 12px; color: #6b7280; margin-top: 8px;">Best traditional browser<br>Fast, private, integrated</div>
+                </div>
+
+                <div class="summary-card">
+                    <div class="summary-title">🔥 Firefox</div>
+                    <div class="summary-value">72/100</div>
+                    <div style="font-size: 12px; color: #6b7280; margin-top: 8px;">Privacy-forward, independent<br>Good DevTools</div>
+                </div>
+
+                <div class="summary-card">
+                    <div class="summary-title">🌐 Chrome</div>
+                    <div class="summary-value">55/100</div>
+                    <div style="font-size: 12px; color: #6b7280; margin-top: 8px;">Surveillance model<br>Best DevTools (tradeoff)</div>
+                </div>
+            </div>
+
+            <div style="margin: 32px 0; padding: 24px; background: #eff6ff; border-radius: 8px; border-left: 4px solid #0284c7;">
+                <h3 style="margin-bottom: 12px; font-weight: 600;">📌 Key Differentiator: Form Factors</h3>
+                <p style="font-size: 14px; line-height: 1.6; color: #1f2937;">
+                    <strong>Himalayas is the only browser built for three independent form factors:</strong>
+                </p>
+                <ul style="margin: 12px 0 0 20px; font-size: 14px; line-height: 1.8;">
+                    <li><strong>Desktop:</strong> Security-first (17 policies), agent-native, zero-trust</li>
+                    <li><strong>Mobile:</strong> Battery-first (94% idle retention), ~40-60MB footprint</li>
+                    <li><strong>IoT Edge:</strong> Sensor fusion, fleet management, ROS 2 native, headless-only</li>
+                </ul>
+                <p style="font-size: 14px; margin-top: 16px; color: #1f2937;">
+                    <strong>Competitors:</strong> Chrome, Firefox, Safari are desktop→mobile ports. None support IoT or agent-native orchestration.
+                </p>
+            </div>
+
+            <div style="margin: 32px 0; padding: 24px; background: #f3f4f6; border-radius: 8px;">
+                <h3 style="margin-bottom: 12px; font-weight: 600;">🎯 Positioning Matrix</h3>
+                <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                    <tr>
+                        <th style="text-align: left; padding: 12px; border-bottom: 2px solid #d1d5db; font-weight: 600;">Use Case</th>
+                        <th style="text-align: left; padding: 12px; border-bottom: 2px solid #d1d5db; font-weight: 600;">Best Browser</th>
+                        <th style="text-align: left; padding: 12px; border-bottom: 2px solid #d1d5db; font-weight: 600;">Why</th>
+                    </tr>
+                    <tr>
+                        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">Agent Automation (Desktop)</td>
+                        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; font-weight: 600; color: #0284c7;">Himalayas</td>
+                        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">Agent-native, bot sandboxing, capability APIs</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">General Web Browsing (Desktop)</td>
+                        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; font-weight: 600;">Safari</td>
+                        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">Fast, private, integrated (best UX on macOS)</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">Privacy + Open Source</td>
+                        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; font-weight: 600;">Firefox</td>
+                        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">ETP, independent, community-driven</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">Web Development</td>
+                        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; font-weight: 600;">Chrome</td>
+                        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">Industry-standard DevTools</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">Mobile (Battery-Conscious)</td>
+                        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; font-weight: 600;">Himalayas</td>
+                        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">92% battery retention, 40-60MB footprint</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 12px;">IoT/Robotics/Swarm</td>
+                        <td style="padding: 12px; font-weight: 600; color: #0284c7;">Himalayas</td>
+                        <td style="padding: 12px;">Only purpose-built option; ROS 2, sensor fusion, fleet mgmt</td>
+                    </tr>
+                </table>
+            </div>
+
+            <div style="margin: 32px 0; padding: 24px; background: #fef2f2; border-radius: 8px; border-left: 4px solid #ef4444;">
+                <h3 style="margin-bottom: 12px; font-weight: 600; color: #dc2626;">⚠️ Chrome's Privacy Problem</h3>
+                <p style="font-size: 13px; line-height: 1.6; color: #1f2937;">
+                    Chrome loads 100% of tracking pixels, stores all user data, and syncs to Google by default. Privacy is opt-in, not default.
+                    <strong>Score: 55/100</strong> (lowest security, lowest privacy).
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function switchTab(event, tabName) {
+            // Hide all tabs
+            const tabs = document.querySelectorAll('.tab-content');
+            tabs.forEach(tab => tab.classList.remove('active'));
+
+            // Remove active class from all buttons
+            const buttons = document.querySelectorAll('.tab-button');
+            buttons.forEach(btn => btn.classList.remove('active'));
+
+            // Show the selected tab
+            document.getElementById(tabName).classList.add('active');
+
+            // Add active class to the clicked button
+            event.target.classList.add('active');
+        }
+    </script>
+</body>
+</html>
