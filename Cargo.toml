@@ -39,6 +39,7 @@ image = "0.24"
 base64 = "0.21"
 sys-info = "0.9"
 num_cpus = "1.16"
+fxhash = "0.2"
 
 toml = "0.8"
 

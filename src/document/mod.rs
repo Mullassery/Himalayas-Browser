@@ -3,12 +3,14 @@ pub mod annotations;
 pub mod forms;
 pub mod ai;
 pub mod metadata;
+pub mod formats;
 
 pub use renderer::PdfRenderer;
 pub use annotations::AnnotationManager;
 pub use forms::FormManager;
 pub use ai::DocumentAI;
 pub use metadata::DocumentMetadata;
+pub use formats::{DocumentFormat, FormatDispatcher};
 
 use anyhow::Result;
 use std::path::Path;
