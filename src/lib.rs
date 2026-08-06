@@ -3,6 +3,7 @@ pub mod benchmark;
 pub mod browser;
 pub mod config;
 pub mod daemon;
+pub mod device;
 pub mod document;
 pub mod health;
 pub mod intelligence;
