@@ -32,6 +32,8 @@ metrics = "0.21"
 metrics-exporter-prometheus = "0.13"
 config = { version = "0.13", features = ["toml", "json", "yaml"] }
 hyper = { version = "0.14", features = ["full"] }
+url = "2.5"
+regex = "1.10"
 
 toml = "0.8"
 

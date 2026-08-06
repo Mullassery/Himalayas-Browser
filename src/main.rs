@@ -3,6 +3,7 @@ use clap::{Parser, Subcommand};
 use tracing::info;
 
 mod benchmark;
+mod browser;
 mod daemon;
 mod health;
 mod metrics;
