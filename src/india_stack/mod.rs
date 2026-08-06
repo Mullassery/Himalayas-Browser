@@ -1,10 +1,15 @@
 pub mod identity;
 pub mod documents;
 pub mod workflows;
+pub mod ocr;
+pub mod pdf_parser;
+pub mod integration;
 
 pub use identity::{IdentityProvider, AadhaarAuth, DigiLockerClient, eSignClient};
 pub use documents::{DocumentProcessor, FormField, FormValidator};
 pub use workflows::WorkflowExecutor;
+pub use ocr::{OCRProcessor, OCREngine, OCRResult, TextBlock};
+pub use pdf_parser::{PDFParser, PDFFormField, PDFParseResult};
 
 use anyhow::Result;
 use std::sync::Arc;
