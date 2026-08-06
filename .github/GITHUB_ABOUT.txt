@@ -1,0 +1,73 @@
+Repository: Himalayas Browser - Agent-Native Operating System
+================================================================================
+
+DESCRIPTION (for GitHub "About" section - max 125 chars):
+────────────────────────────────────────────────────────────
+The world's first truly agent-native browser platform. Agents are native citizens.
+
+LONGER DESCRIPTION (for website link):
+────────────────────────────────────────────────────────────
+Himalayas Browser is an agent-native operating system built on Rust. Unlike
+traditional browsers where automation is bolted on, Himalayas is fundamentally
+designed from the ground up for autonomous agents. Agents are first-class citizens,
+the GUI is optional, and privacy is enforced by architecture—not settings.
+
+Perfect for government automation, enterprise RPA, privacy-conscious users,
+and developers who need a headless-first browser platform.
+
+WEBSITE:
+────────────────────────────────────────────────────────────
+https://github.com/Mullassery/Himalayas-Browser (or your custom domain)
+
+TOPICS (Add these to GitHub settings):
+────────────────────────────────────────────────────────────
+- agent-browser
+- agent-native
+- rust
+- headless-browser
+- automation
+- privacy-first
+- browser-platform
+- keyboard-driven
+- multi-platform
+- ai-native
+
+KEY FEATURES (for README):
+────────────────────────────────────────────────────────────
+✅ Agent-Native Architecture - Agents are first-class citizens
+✅ Headless-First Design - Runtime primary, GUI optional
+✅ Privacy by Architecture - Ephemeral by default, no tracking
+✅ AI Document Platform - PDF, Word, Excel, PowerPoint processing
+✅ Adaptive Intelligence - Auto-detects device, adapts at runtime
+✅ Keyboard-Driven - 50+ customizable shortcuts
+✅ Multi-Workspace - Organize by context
+✅ Spatial Intelligence - Multi-GNSS, location memory
+✅ Production Ready - 218 tests, 100% passing
+✅ Multi-Platform - Windows, macOS, Linux (x86_64, ARM64)
+
+STATUS:
+────────────────────────────────────────────────────────────
+Phase 0-5: COMPLETE ✅ (Production Ready)
+Phase 6: PLANNED (Q4 2026 - Keyboard & Trackpad)
+
+QUICK LINKS:
+────────────────────────────────────────────────────────────
+📖 Getting Started: docs/GETTING_STARTED.md
+🎯 Usage Guide: docs/USAGE.md
+🗺️ Roadmap: docs/ROADMAP.md
+🤝 Contributing: CONTRIBUTING.md
+📋 Code of Conduct: CODE_OF_CONDUCT.md
+
+STATISTICS:
+────────────────────────────────────────────────────────────
+Language: Rust 95.3% | Shell 2.6% | PowerShell 2.1%
+Tests: 218 passing (100%)
+Platforms: 3 (Windows, macOS, Linux)
+Architectures: 2 per platform (x86_64, ARM64)
+Contributors: 1 (Georgi Mammen Mullassery)
+
+GETTING HELP:
+────────────────────────────────────────────────────────────
+📩 Email: mullassery@gmail.com
+🐛 Issues: github.com/Mullassery/Himalayas-Browser/issues
+💬 Discussions: github.com/Mullassery/Himalayas-Browser/discussions

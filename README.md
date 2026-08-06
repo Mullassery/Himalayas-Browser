@@ -2,7 +2,8 @@
 
 <div align="center">
 
-**The world's first truly agent-native browser platform**
+**The world's first truly agent-native browser platform**  
+*Agents are native citizens, not automation add-ons*
 
 [![Rust](https://img.shields.io/badge/Rust-1.75+-orange?logo=rust&logoColor=white)](https://www.rust-lang.org/)
 [![Tests](https://img.shields.io/badge/Tests-218%2F218%20passing-brightgreen)](./src)
@@ -453,6 +454,14 @@ We're actively building and welcome contributions!
 **[Report issues](https://github.com/Mullassery/Himalayas-Browser/issues/new)** for bugs and feature requests.
 
 **[Code of Conduct](./CODE_OF_CONDUCT.md)** - Please review our community standards.
+
+## 📍 GitHub Repository Setup
+
+See [.github/SETUP_GITHUB.md](./.github/SETUP_GITHUB.md) for:
+- Repository description configuration
+- Topics/tags setup
+- Feature enablement
+- Branch protection rules
 
 ---
 
