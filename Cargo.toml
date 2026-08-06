@@ -7,6 +7,14 @@ description = "The world's first truly agent-native browser platform"
 repository = "https://github.com/Mullassery/Himalayas"
 license = "Proprietary"
 
+[[bin]]
+name = "himalayas"
+path = "src/main.rs"
+
+[lib]
+name = "himalayas"
+path = "src/lib.rs"
+
 [dependencies]
 tokio = { version = "1.35", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
