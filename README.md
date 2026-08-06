@@ -23,14 +23,17 @@ Himalayas provides:
 
 ## What is Himalayas?
 
-Himalayas Browser is an **agent operating system** where:
+**Himalayas Browser** is a headless browser with attached frontends.
 
-1. **Agents run autonomously** in a headless runtime
-2. **Humans approve important decisions** through a debugger GUI
-3. **Both collaborate seamlessly** on complex workflows
-4. **Everything is auditable** with complete provenance
-5. **Privacy is the default** (sessions private, tracking blocked, data deleted)
-6. **Security is enforced** (zero-trust, time-bound permissions, isolated agents)
+It's an **agent-native browser platform** where:
+
+1. **Default mode**: Headless (efficient, serverless, no GUI overhead)
+2. **Optional frontends**: Desktop, web, mobile, or CLI — attach when needed
+3. **Agents run autonomously** in the runtime
+4. **Humans approve decisions** through optional debugger GUI (not required for execution)
+5. **Everything is auditable** with complete provenance
+6. **Privacy by default** (private sessions, no tracking, auto-delete)
+7. **Security enforced** (zero-trust, time-bound permissions, isolated agents)
 
 ## Quick Links
 

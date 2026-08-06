@@ -3,7 +3,7 @@
 ## System Overview
 
 ```
-                 AI Browser Platform
+             Himalayas Headless Browser
 
 +-----------------------------------------------------+
 
@@ -15,13 +15,14 @@
   - Policy Engine (compliance, risk-based)
   - Audit & Observability (OTel)
 
-        Browser Runtime (Capability Provider)
+   Headless Browser Runtime (Capability Provider)
 
-  - Headless Chromium/WebKit
+  - Headless Chromium/WebKit (default, no rendering)
   - Semantic DOM Builder
   - Network Proxy & Intelligence
   - Session Manager
   - State Snapshots (for replay)
+  - Optional Frontends (desktop, web, mobile, CLI)
 
         Tool Runtime Layer
 

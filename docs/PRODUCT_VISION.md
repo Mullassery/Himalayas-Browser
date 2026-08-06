@@ -2,12 +2,18 @@
 
 ## Executive Summary
 
-Himalayas Browser is the world's first truly agent-native browser platform. It represents a fundamental shift in how we think about browsing and automation — from a GUI-first tool controlled by humans to a runtime-first platform where agents are first-class citizens.
+**Himalayas Browser** is a headless browser with attached frontends. It's the world's first truly agent-native browser platform where:
+- **Default**: Headless (no GUI, efficient, serverless)
+- **Optional**: Frontends on-demand (desktop, web, mobile, CLI)
+- **Runtime**: The primary entity
+- **Agents**: First-class citizens with their own sandboxes, permissions, audit trails
 
-This is a platform shift comparable to:
+This represents a fundamental shift from GUI-first browser (for humans) to headless-by-default browser (for agents), with optional visual frontends.
+
+A platform shift comparable to:
 - CLI → GUI (1980s-1990s)
 - Desktop → Mobile (2000s-2010s)
-- Now: Human Browser → Agent Operating System (2020s)
+- Now: GUI Browser → Headless Agent Browser (2020s)
 
 ## Core Principles (8)
 
