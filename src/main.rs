@@ -2,6 +2,7 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 use tracing::info;
 
+mod api;
 mod benchmark;
 mod browser;
 mod daemon;

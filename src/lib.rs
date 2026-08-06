@@ -1,3 +1,4 @@
+pub mod api;
 pub mod benchmark;
 pub mod browser;
 pub mod daemon;

@@ -23,6 +23,10 @@ impl CookieJar {
         }
     }
 
+    pub fn from_cookies(cookies: HashMap<String, String>) -> Self {
+        Self { cookies }
+    }
+
     pub fn set(&mut self, name: String, value: String) {
         self.cookies.insert(name, value);
     }

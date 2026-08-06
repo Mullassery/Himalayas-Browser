@@ -4,7 +4,7 @@ pub mod semantics;
 
 pub use navigator::Navigator;
 pub use session::Session;
-pub use semantics::SemanticDOM;
+pub use semantics::{SemanticDOM, SemanticElement};
 
 use anyhow::Result;
 use std::sync::Arc;
