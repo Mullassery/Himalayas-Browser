@@ -7,6 +7,7 @@ mod benchmark;
 mod browser;
 mod daemon;
 mod health;
+mod india_stack;
 mod metrics;
 mod permission;
 mod server;

@@ -3,6 +3,7 @@ pub mod benchmark;
 pub mod browser;
 pub mod daemon;
 pub mod health;
+pub mod india_stack;
 pub mod metrics;
 pub mod permission;
 pub mod server;
