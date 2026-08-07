@@ -38,6 +38,11 @@ impl AgentContext {
         let page = self.browser.navigator().navigate(url, &jar).await?;
         self.session.set_current_url(page.url.clone());
 
+        let response_cookies = self.browser.navigator().extract_cookies_from_headers(&page.headers);
+        for (name, value) in response_cookies.get_all() {
+            self.session.set_cookie(name, value);
+        }
+
         let dom = crate::browser::SemanticDOM::from_html(page.url, &page.html)?;
         Ok(dom)
     }

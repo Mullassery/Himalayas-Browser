@@ -1,6 +1,6 @@
 [package]
 name = "himalayas"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 authors = ["Georgi Mammen Mullassery <mullassery@gmail.com>"]
 description = "The world's first truly agent-native browser platform"
@@ -48,6 +48,8 @@ sys-info = "0.9"
 num_cpus = "1.16"
 fxhash = "0.2"
 toml = "0.8"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+scraper = "0.20"
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3", features = ["winuser", "winbase", "processthreadsapi", "winnt"] }
@@ -67,6 +69,7 @@ full = ["india_stack"]
 
 [dev-dependencies]
 tokio-test = "0.4"
+mockito = "1.5"
 
 [profile.release]
 opt-level = 3

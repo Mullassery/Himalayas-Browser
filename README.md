@@ -2,7 +2,7 @@
 
 **The browser that makes Chrome look slow. Built for agents, loved by speed fanatics.**
 
-[![GitHub Stars](https://img.shields.io/github/stars/Mullassery/Himalayas-Browser?style=social)](https://github.com/Mullassery/Himalayas-Browser) [![Tests](https://img.shields.io/badge/tests-143%20passing-brightgreen?style=flat-square)](.) [![License](https://img.shields.io/badge/license-Proprietary-blue?style=flat-square)](LICENSE) [![Version](https://img.shields.io/badge/version-0.2.5-blue?style=flat-square)](.)
+[![GitHub Stars](https://img.shields.io/github/stars/Mullassery/Himalayas-Browser?style=social)](https://github.com/Mullassery/Himalayas-Browser) [![Tests](https://img.shields.io/badge/tests-224%20passing-brightgreen?style=flat-square)](.) [![License](https://img.shields.io/badge/license-Proprietary-blue?style=flat-square)](LICENSE) [![Version](https://img.shields.io/badge/version-0.2.0-blue?style=flat-square)](.)
 
 ---
 
