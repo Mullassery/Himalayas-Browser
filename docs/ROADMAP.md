@@ -4,6 +4,8 @@
 **Status**: Design specification  
 **Target Release**: Q4 2026
 
+This document is the implementation-level spec for keyboard and trackpad input. For the broader interface vision it fits into (adaptive UI, AI workspace, sidebar, workspaces, design language, etc.), see [UI_UX_VISION.md](./UI_UX_VISION.md).
+
 ---
 
 ## Vision
@@ -172,7 +174,7 @@ Ctrl+Shift+Del   → Clear browsing data
 | Previous tab | Ctrl+Shift+Tab | Cmd+{ |
 | Move tab left | Ctrl+Shift+PageUp | Cmd+Shift+← |
 | Move tab right | Ctrl+Shift+PageDown | Cmd+Shift+→ |
-| Pin tab | Ctrl+Shift+P | Cmd+Shift+P |
+| Pin tab | Ctrl+Shift+K | Cmd+Shift+K |
 
 **Navigation**
 | Action | Windows/Linux | macOS |
@@ -468,7 +470,7 @@ Ctrl+Shift+T    → Restore tab
 Ctrl+Tab        → Next tab
 Ctrl+Shift+Tab  → Previous tab
 Ctrl+Shift+M    → Mute tab
-Ctrl+Shift+P    → Pin tab
+Ctrl+Shift+K    → Pin tab
 Ctrl+Alt+S      → Suspend tab
 Ctrl+Alt+R      → Restore tab
 Ctrl+Shift+G    → Group tabs
