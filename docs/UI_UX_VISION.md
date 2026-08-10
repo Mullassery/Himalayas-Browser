@@ -153,5 +153,6 @@ Every object exposes contextual actions.
 ## Related Documentation
 
 - [ROADMAP.md](./ROADMAP.md) — Keyboard & trackpad implementation spec (command palette, shortcuts, gestures)
+- [NATIVE_RENDERING_PLAN.md](./NATIVE_RENDERING_PLAN.md) — What actually fills the content pane: native rendering engine findings and follow-up plan
 - [GETTING_STARTED.md](./GETTING_STARTED.md) — What's shipped today
 - [USAGE.md](./USAGE.md) — Usage reference

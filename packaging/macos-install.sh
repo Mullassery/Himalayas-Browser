@@ -3,6 +3,12 @@ set -e
 
 # Himalayas Browser macOS Installation Script
 # Supports: macOS 11.0+ (Intel & Apple Silicon)
+#
+# NOT YET FUNCTIONAL: downloads a DMG from a GitHub Releases tag that does
+# not exist yet (no tagged release has been published). This is scaffolding
+# for that future release flow, not something to run today. Until then, use
+# `brew install --HEAD himalayas` (see Formula/himalayas.rb) or build from
+# source directly — see docs/GETTING_STARTED.md.
 
 INSTALLATION_DIR="/Applications/Himalayas.app"
 BIN_LINK="/usr/local/bin/himalayas"

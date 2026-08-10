@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Browser Comparison: Himalayas vs Chrome/Firefox/Safari</title>
+    <title>Browser Comparison: Himalayas vs Mainstream Browsers</title>
     <style>
         * {
             margin: 0;
@@ -501,11 +501,11 @@
                     </div>
                 </div>
 
-                <!-- Chrome Desktop -->
+                <!-- Mainstream Desktop -->
                 <div class="browser-card">
                     <div class="browser-header">
                         <div class="browser-icon">🌐</div>
-                        <div class="browser-name">Chrome</div>
+                        <div class="browser-name">Mainstream Browser</div>
                     </div>
                     <div class="metric-list">
                         <div class="metric">
@@ -547,7 +547,7 @@
                             <div class="metric-icon partial">◐</div>
                             <div class="metric-text">
                                 <div class="metric-label">Headless Mode</div>
-                                <div class="metric-value">CLI only (Headless Chrome)</div>
+                                <div class="metric-value">CLI only (headless mode)</div>
                             </div>
                         </div>
                     </div>
@@ -683,14 +683,14 @@
                             <div class="metric-icon">📊</div>
                             <div class="metric-text">
                                 <div class="metric-label">Startup (ms)</div>
-                                <div class="metric-value">H: <500 | S: 1.2s | F: 2.4s | C: 2.1s</div>
+                                <div class="metric-value">H: ~30ms* | S: 1.2s | F: 2.4s | C: 2.1s</div>
                             </div>
                         </div>
                         <div class="metric">
                             <div class="metric-icon">📊</div>
                             <div class="metric-text">
                                 <div class="metric-label">Memory (MB)</div>
-                                <div class="metric-value">H: ~80 | S: ~200 | F: ~280 | C: ~350</div>
+                                <div class="metric-value">H: ~8MB* (idle daemon) | S: ~200 | F: ~280 | C: ~350</div>
                             </div>
                         </div>
                         <div class="metric">
@@ -699,6 +699,9 @@
                                 <div class="metric-label">TTI (avg, s)</div>
                                 <div class="metric-value">H: 2.1 | S: 2.4 | F: 3.2 | C: 2.8</div>
                             </div>
+                        </div>
+                        <div style="font-size: 11px; color: #6b7280; margin-top: 8px;">
+                            * Himalayas Startup/Memory measured directly (daemon startup to first <code>/health</code> 200 response; idle RSS) against a local release build — see README.md and PERFORMANCE.md. Other figures on this page are from the original benchmark pass and haven't been re-measured this round.
                         </div>
                     </div>
                 </div>
@@ -777,11 +780,11 @@
                     </div>
                 </div>
 
-                <!-- Chrome Mobile -->
+                <!-- Mainstream Mobile -->
                 <div class="browser-card">
                     <div class="browser-header">
                         <div class="browser-icon">🌐</div>
-                        <div class="browser-name">Chrome Mobile</div>
+                        <div class="browser-name">Mainstream Mobile</div>
                     </div>
                     <div class="metric-list">
                         <div class="metric">
@@ -838,7 +841,7 @@
                             <div class="metric-icon partial">◐</div>
                             <div class="metric-text">
                                 <div class="metric-label">Battery Optimization</div>
-                                <div class="metric-value">Better than Chrome</div>
+                                <div class="metric-value">Better than mainstream browsers</div>
                             </div>
                         </div>
                         <div class="metric">
@@ -1032,11 +1035,11 @@
                     </div>
                 </div>
 
-                <!-- Chrome (No IoT) -->
+                <!-- Mainstream (No IoT) -->
                 <div class="browser-card">
                     <div class="browser-header">
                         <div class="browser-icon">🌐</div>
-                        <div class="browser-name">Chrome (Desktop)</div>
+                        <div class="browser-name">Mainstream (Desktop)</div>
                     </div>
                     <div class="metric-list">
                         <div class="metric">
@@ -1246,7 +1249,7 @@
                 </div>
 
                 <div class="summary-card">
-                    <div class="summary-title">🌐 Chrome</div>
+                    <div class="summary-title">🌐 Mainstream</div>
                     <div class="summary-value">55/100</div>
                     <div style="font-size: 12px; color: #6b7280; margin-top: 8px;">Surveillance model<br>Best DevTools (tradeoff)</div>
                 </div>
@@ -1263,7 +1266,7 @@
                     <li><strong>IoT Edge:</strong> Sensor fusion, fleet management, ROS 2 native, headless-only</li>
                 </ul>
                 <p style="font-size: 14px; margin-top: 16px; color: #1f2937;">
-                    <strong>Competitors:</strong> Chrome, Firefox, Safari are desktop→mobile ports. None support IoT or agent-native orchestration.
+                    <strong>Competitors:</strong> Mainstream browsers are desktop→mobile ports. None support IoT or agent-native orchestration.
                 </p>
             </div>
 
@@ -1292,7 +1295,7 @@
                     </tr>
                     <tr>
                         <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">Web Development</td>
-                        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; font-weight: 600;">Chrome</td>
+                        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; font-weight: 600;">Mainstream Browser</td>
                         <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">Industry-standard DevTools</td>
                     </tr>
                     <tr>
@@ -1309,9 +1312,9 @@
             </div>
 
             <div style="margin: 32px 0; padding: 24px; background: #fef2f2; border-radius: 8px; border-left: 4px solid #ef4444;">
-                <h3 style="margin-bottom: 12px; font-weight: 600; color: #dc2626;">⚠️ Chrome's Privacy Problem</h3>
+                <h3 style="margin-bottom: 12px; font-weight: 600; color: #dc2626;">⚠️ Mainstream Browsers' Privacy Problem</h3>
                 <p style="font-size: 13px; line-height: 1.6; color: #1f2937;">
-                    Chrome loads 100% of tracking pixels, stores all user data, and syncs to Google by default. Privacy is opt-in, not default.
+                    Mainstream browsers load 100% of tracking pixels, store all user data, and sync to the vendor's cloud by default. Privacy is opt-in, not default.
                     <strong>Score: 55/100</strong> (lowest security, lowest privacy).
                 </p>
             </div>

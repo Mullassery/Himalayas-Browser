@@ -1,6 +1,13 @@
 # Himalayas Browser Windows Installation Script
 # Supports: Windows 10+ (x86_64 & ARM64)
 # Run as Administrator
+#
+# NOT YET FUNCTIONAL: downloads an MSI from a GitHub Releases tag that does
+# not exist yet (no tagged release has been published). This is scaffolding
+# for that future release flow, not something to run today. Until then,
+# build from source directly (`cargo install --path .`) — see
+# docs/GETTING_STARTED.md. (No Homebrew on Windows, so the tap doesn't apply
+# here the way it does for macOS/Linux.)
 
 param(
     [string]$Version = "latest",

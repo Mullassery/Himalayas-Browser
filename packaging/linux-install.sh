@@ -3,6 +3,12 @@ set -e
 
 # Himalayas Browser Linux Installation Script
 # Supports: Ubuntu/Debian, Fedora, Arch, Generic Linux
+#
+# NOT YET FUNCTIONAL: downloads a package from a GitHub Releases tag that
+# does not exist yet (no tagged release has been published). This is
+# scaffolding for that future release flow, not something to run today.
+# Until then, use `brew install --HEAD himalayas` (see Formula/himalayas.rb)
+# or build from source directly — see docs/GETTING_STARTED.md.
 
 INSTALLATION_DIR="${INSTALLATION_DIR:-/opt/himalayas}"
 BIN_LINK="/usr/local/bin/himalayas"

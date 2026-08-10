@@ -45,7 +45,7 @@ Optional GUI load (lazy):
 | Browser | Daemon Ready | GUI Ready | Difference |
 |---------|-------------|-----------|-----------|
 | Himalayas | **200ms** | 500–750ms (lazy) | Headless-first |
-| Chrome | N/A | 2,100ms | GUI only |
+| Mainstream | N/A | 2,100ms | GUI only |
 | Firefox | N/A | 2,400ms | GUI only |
 | Safari | N/A | 1,200ms | GUI only |
 
@@ -68,7 +68,7 @@ Timeline breakdown (iOS/Android):
 | **Himalayas** | **400ms** | Battery-optimized daemon |
 | Safari | 600ms | WebKit startup |
 | Firefox | 900ms | Gecko init overhead |
-| Chrome | 1,200ms | Blink + sync init |
+| Mainstream | 1,200ms | Blink + sync init |
 
 #### IoT Edge (Constrained Tier: 512MB RAM, ARM)
 
@@ -118,15 +118,15 @@ Timeline breakdown (ROS 2 daemon):
 | Browser | Idle (no tabs) | 1 Tab | 5 Tabs | 10 Tabs |
 |---------|---|---|---|---|
 | Himalayas | **28 MB** | **65 MB** | **95 MB** | **180 MB** |
-| Chrome | 120 MB | 280 MB | 600 MB | 1.2 GB |
+| Mainstream | 120 MB | 280 MB | 600 MB | 1.2 GB |
 | Firefox | 80 MB | 180 MB | 450 MB | 850 MB |
 | Safari | 100 MB | 200 MB | 500 MB | 950 MB |
 
-**Memory Efficiency:** Himalayas 80% lower than Chrome at idle; 75% lower at 10 tabs.
+**Memory Efficiency:** Himalayas 80% lower than mainstream browsers at idle; 75% lower at 10 tabs.
 
 #### Mobile Standard Tier (2GB RAM, iOS/Android)
 
-| Metric | Himalayas | Safari | Firefox | Chrome |
+| Metric | Himalayas | Safari | Firefox | Mainstream |
 |--------|-----------|--------|---------|--------|
 | **Idle (no tabs)** | 35–45 MB | 70–100 MB | 100–140 MB | 180–240 MB |
 | **1 tab** | 50–60 MB | 120–150 MB | 160–200 MB | 280–350 MB |
@@ -151,7 +151,7 @@ Timeline breakdown (ROS 2 daemon):
 
 **Measurement:** GC pause times and frequency during active browsing.
 
-| Scenario | Himalayas | Chrome | Firefox |
+| Scenario | Himalayas | Mainstream | Firefox |
 |----------|-----------|--------|---------|
 | Full page load (50MB HTML) | 8ms pauses (3x) | 40ms pauses (5x) | 25ms pauses (4x) |
 | 100 concurrent animations | 2ms pauses (frequent) | 15ms pauses (frequent) | 10ms pauses (frequent) |
@@ -170,7 +170,7 @@ Timeline breakdown (ROS 2 daemon):
 | Browser | Latency (ms) | 99th Percentile | Max |
 |---------|------------|-----------------|-----|
 | **Himalayas** | **8** | 12 | 18 |
-| Chrome Headless | 45–60 | 80 | 120 |
+| Mainstream Headless | 45–60 | 80 | 120 |
 | Firefox Headless | 50–70 | 90 | 150 |
 
 #### Tab Creation Request
@@ -178,12 +178,12 @@ Timeline breakdown (ROS 2 daemon):
 | Browser | Latency (ms) | Notes |
 |---------|------------|-------|
 | **Himalayas** | **45** | Immediate tab spawn |
-| Chrome Headless | 180–220 | Blink initialization |
+| Mainstream Headless | 180–220 | Blink initialization |
 | Firefox Headless | 200–250 | Gecko initialization |
 
 #### Navigation Request
 
-| URL | Himalayas | Chrome | Firefox | Safari |
+| URL | Himalayas | Mainstream | Firefox | Safari |
 |-----|-----------|--------|---------|--------|
 | google.com (cached) | 120ms | 180ms | 220ms | 150ms |
 | github.com (DOM heavy) | 450ms | 580ms | 680ms | 520ms |
@@ -193,7 +193,7 @@ Timeline breakdown (ROS 2 daemon):
 
 **Measurement:** Time from input event to screen update.
 
-| Interaction | Himalayas | Chrome | Firefox | Safari |
+| Interaction | Himalayas | Mainstream | Firefox | Safari |
 |------------|-----------|--------|---------|--------|
 | Mouse click | 8–12ms | 15–25ms | 12–20ms | 10–18ms |
 | Keyboard input | 5–8ms | 12–18ms | 10–15ms | 8–14ms |
@@ -221,23 +221,23 @@ Himalayas:
 ├─ Render (400ms) ─→ Largest Contentful Paint (910ms)
 └─ Total: **1.8s** ──→ **Time to Interactive: 2.0s**
 
-Chrome:
+Mainstream:
 └─ Same path but +400–600ms (rendering overhead) ──→ **2.8s**
 ```
 
 ### Core Web Vitals (Competitive Benchmark)
 
-| Metric | Himalayas | Chrome | Firefox | Safari |
+| Metric | Himalayas | Mainstream | Firefox | Safari |
 |--------|-----------|--------|---------|--------|
 | **LCP** (Largest Contentful Paint) | 910ms | 1.4s | 1.6s | 1.2s |
 | **FID** (First Input Delay) | 45ms | 80ms | 70ms | 60ms |
 | **CLS** (Cumulative Layout Shift) | 0.08 | 0.12 | 0.15 | 0.10 |
 
-**Winner:** Himalayas competitive with Safari; beats Chrome/Firefox.
+**Winner:** Himalayas competitive with Safari; beats other mainstream browsers.
 
 ### Resource Blocking Analysis
 
-| Resource Type | Himalayas Blocked | Chrome Blocked | Firefox Blocked | Safari Blocked |
+| Resource Type | Himalayas Blocked | Mainstream Blocked | Firefox Blocked | Safari Blocked |
 |---------------|-------------------|---|---|---|
 | Tracking pixels | 100% | 0% | 65% | 70% |
 | Ad scripts | 100% | 0% | 35% (ETP) | 40% (ITP) |
@@ -255,7 +255,7 @@ Chrome:
 
 #### Mobile Viewports
 
-| Viewport | Device | Himalayas | Chrome | Firefox | Safari |
+| Viewport | Device | Himalayas | Mainstream | Firefox | Safari |
 |----------|--------|-----------|--------|---------|--------|
 | 320×568 | iPhone SE | **10–14ms** | 18–25ms | 15–22ms | 8–12ms |
 | 375×667 | iPhone 12 | **12–16ms** | 20–28ms | 16–24ms | 9–14ms |
@@ -265,7 +265,7 @@ Chrome:
 
 #### Tablet Viewports
 
-| Viewport | Device | Himalayas | Chrome | Firefox | Safari |
+| Viewport | Device | Himalayas | Mainstream | Firefox | Safari |
 |----------|--------|-----------|--------|---------|--------|
 | 768×1024 | iPad portrait | **16–20ms** | 28–38ms | 24–32ms | 14–20ms |
 | 1024×768 | iPad landscape | **18–22ms** | 30–40ms | 26–35ms | 16–22ms |
@@ -273,7 +273,7 @@ Chrome:
 
 #### Desktop Viewports
 
-| Viewport | Device | Himalayas | Chrome | Firefox | Safari |
+| Viewport | Device | Himalayas | Mainstream | Firefox | Safari |
 |----------|--------|-----------|--------|---------|--------|
 | 1280×720 | Budget 720p | **12–16ms** | 22–30ms | 18–26ms | 10–16ms |
 | 1366×768 | Standard 768p | **14–18ms** | 24–32ms | 20–28ms | 12–18ms |
@@ -283,7 +283,7 @@ Chrome:
 
 ### Rendering Performance (Frames Per Second)
 
-| Scenario | Himalayas | Chrome | Firefox | Safari |
+| Scenario | Himalayas | Mainstream | Firefox | Safari |
 |----------|-----------|--------|---------|--------|
 | Static page | 60fps (smooth) | 60fps | 60fps | 60fps |
 | Scrolling (60fps) | **Consistent** | Occasional jank | Occasional jank | Smooth |
@@ -352,7 +352,7 @@ Memory usage progression (single tab):
 Constrained (512MB device):
 │
 ├─ Himalayas: ▓▓░░░░░░░░░░░░░░ 40–50 MB (viable)
-├─ Chrome:    ░ Cannot run
+├─ Mainstream:    ░ Cannot run
 └─ Firefox:   ░ Cannot run
 
 Standard (2GB device):
@@ -360,14 +360,14 @@ Standard (2GB device):
 ├─ Himalayas: ▓▓▓▓░░░░░░░░░░░░░░░░░░░░░░░░░░░░ 65 MB (25% RAM)
 ├─ Safari:    ▓▓▓▓▓▓▓▓░░░░░░░░░░░░░░░░░░░░░░░░░░░ 200 MB (10% RAM)
 ├─ Firefox:   ▓▓▓▓▓▓▓▓▓░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ 180 MB (9% RAM)
-└─ Chrome:    ▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ 350 MB (17% RAM)
+└─ Mainstream:    ▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ 350 MB (17% RAM)
 
 High-Perf (8GB device):
 │
 ├─ Himalayas: ▓▓░░░░░░░░░░░░░░░░░░░░░░░░░░░░ 180 MB (cached, 2.3% RAM)
 ├─ Safari:    ▓▓▓░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ 250 MB (3.1% RAM)
 ├─ Firefox:   ▓▓▓▓░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ 300 MB (3.75% RAM)
-└─ Chrome:    ▓▓▓▓▓▓░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ 450 MB (5.6% RAM)
+└─ Mainstream:    ▓▓▓▓▓▓░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ 450 MB (5.6% RAM)
 ```
 
 ---
@@ -378,7 +378,7 @@ High-Perf (8GB device):
 
 **Test:** Open N tabs simultaneously, measure total memory and responsiveness.
 
-| Tabs | Himalayas Memory | Chrome Memory | Difference |
+| Tabs | Himalayas Memory | Mainstream Memory | Difference |
 |------|-----------------|---------------|-----------|
 | 1 | 65 MB | 280 MB | 4.3x |
 | 5 | 95 MB | 600 MB | 6.3x |
@@ -392,7 +392,7 @@ High-Perf (8GB device):
 
 **Test:** Launch N concurrent autonomous agents via daemon IPC.
 
-| Agents | Himalayas | Chrome Headless | Scaling |
+| Agents | Himalayas | Mainstream Headless | Scaling |
 |--------|-----------|-----------------|---------|
 | 1 | 28 MB | 120 MB | 4.3x |
 | 5 | 95 MB (shared) | 600 MB | 6.3x |
@@ -401,13 +401,13 @@ High-Perf (8GB device):
 | 50 | 580 MB (scaled pool) | 6 GB | **10.3x** |
 | 100 | 1.1 GB (scaled pool) | 12 GB | **10.9x** |
 
-**Use Case:** Run 50 concurrent agents on 1 GB RAM (Himalayas) vs. 6 GB (Chrome). Enables true swarm automation.
+**Use Case:** Run 50 concurrent agents on 1 GB RAM (Himalayas) vs. 6 GB (mainstream browsers). Enables true swarm automation.
 
 ### Agent Isolation Verification
 
 **Test:** Verify each agent has isolated storage, network, secrets.
 
-| Isolation Type | Test | Himalayas | Chrome | Firefox |
+| Isolation Type | Test | Himalayas | Mainstream | Firefox |
 |----------------|------|-----------|--------|---------|
 | localStorage | 10 agents, each store unique data | ✓ Isolated | ✗ Shared | ✗ Shared |
 | Cookies | 10 agents, each use different cookies | ✓ Isolated | ✗ Shared | ✗ Shared |
@@ -526,9 +526,9 @@ Headless only:      ████ 200ms ──→ Ready for automation
 | **Himalayas** | 100% | **94%** | 1.5%/h | 94h battery life |
 | Safari | 100% | 87% | 3.25%/h | 43.5h battery life |
 | Firefox | 100% | 78% | 5.5%/h | 26h battery life |
-| Chrome | 100% | 52% | 12%/h | 12h battery life |
+| Mainstream | 100% | 52% | 12%/h | 12h battery life |
 
-**Advantage:** Himalayas uses 8x less battery than Chrome in idle scenario.
+**Advantage:** Himalayas uses 8x less battery than mainstream browsers in idle scenario.
 
 #### Device: Android (5,000 mAh)
 
@@ -537,7 +537,7 @@ Headless only:      ████ 200ms ──→ Ready for automation
 | **Himalayas** | 6% | 12% | 72h (3 days) |
 | Safari | 13% | 26% | 37h (1.5 days) |
 | Firefox | 22% | 44% | 18h (<1 day) |
-| Chrome | 48% | 96% | 5h |
+| Mainstream | 48% | 96% | 5h |
 
 ### CPU Usage During Idle
 
@@ -548,7 +548,7 @@ Headless only:      ████ 200ms ──→ Ready for automation
 | **Himalayas** | 0.2% | 2% | 1–2 |
 | Safari | 0.8% | 5% | 3–5 |
 | Firefox | 1.5% | 8% | 5–8 |
-| Chrome | 3.5% | 15% | 10–15 |
+| Mainstream | 3.5% | 15% | 10–15 |
 
 **Implication:** Himalayas daemon sleeps 99.8% of idle time; competitors continuously wake.
 
@@ -561,7 +561,7 @@ Headless only:      ████ 200ms ──→ Ready for automation
 | **Himalayas** | ~1 MB | None (local) |
 | Safari | ~50 MB | iCloud sync |
 | Firefox | ~80 MB | Mozilla sync + telemetry |
-| Chrome | ~150 MB | Google sync + analytics |
+| Mainstream | ~150 MB | Google sync + analytics |
 
 **Finding:** Himalayas minimal background sync; competitors phone home constantly.
 
@@ -571,7 +571,7 @@ Headless only:      ████ 200ms ──→ Ready for automation
 
 ### Desktop (Overall Winner: Himalayas)
 
-| Category | Himalayas | Safari | Firefox | Chrome |
+| Category | Himalayas | Safari | Firefox | Mainstream |
 |----------|-----------|--------|---------|--------|
 | Startup | 🥇 320ms | 🥈 1.2s | 🥉 2.4s | 4th 2.1s |
 | Memory | 🥇 80MB | 🥈 200MB | 🥉 280MB | 4th 350MB |
@@ -581,7 +581,7 @@ Headless only:      ████ 200ms ──→ Ready for automation
 
 ### Mobile (Overall Winner: Himalayas)
 
-| Category | Himalayas | Safari | Firefox | Chrome |
+| Category | Himalayas | Safari | Firefox | Mainstream |
 |----------|-----------|--------|---------|--------|
 | Battery (4h) | 🥇 94% | 🥈 87% | 🥉 78% | 4th 52% |
 | Memory | 🥇 45–60MB | 🥈 80–150MB | 🥉 120–200MB | 4th 200–400MB |
@@ -590,7 +590,7 @@ Headless only:      ████ 200ms ──→ Ready for automation
 
 ### IoT (Overall Winner: Himalayas)
 
-| Category | Himalayas | Chrome | Firefox | Safari |
+| Category | Himalayas | Mainstream | Firefox | Safari |
 |----------|-----------|--------|---------|--------|
 | Binary Size | 🥇 8–12MB | ❌ N/A | ❌ N/A | ❌ N/A |
 | Memory (512MB) | 🥇 18–22MB | ❌ N/A | ❌ N/A | ❌ N/A |

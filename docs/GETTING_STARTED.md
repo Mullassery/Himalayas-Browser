@@ -15,10 +15,10 @@ Welcome to Himalayas Browser - the world's first truly agent-native browser plat
 
 ## What is Himalayas?
 
-Himalayas Browser is **not a Chrome competitor**. It's a fundamentally different architecture:
+Himalayas Browser is **not a mainstream-browser competitor**. It's a fundamentally different architecture:
 
 ```
-Traditional Browser (Chrome, Firefox, Safari)
+Traditional Browser (mainstream browsers like Firefox, Safari)
 └─ GUI-first design
    └─ APIs and automation as afterthought
    └─ Agents are visitors, not citizens
@@ -32,7 +32,7 @@ Himalayas Browser (Agent-Native OS)
 
 ### Core Differences
 
-| Feature | Chrome | Himalayas |
+| Feature | Mainstream Browser | Himalayas |
 |---------|--------|-----------|
 | **Primary Interface** | GUI (visual browser) | Runtime (headless-first) |
 | **Agents** | Bolt-on feature | Native citizens |
@@ -55,36 +55,22 @@ Himalayas Browser (Agent-Native OS)
 
 ## Installation
 
-### Quick Install (Recommended)
+No packaged installer (.msi/.dmg/.deb/.rpm) or package-manager release
+(Chocolatey, apt) is published yet — this initial release is
+build-from-source/cargo-only. The `packaging/*-install.sh`/`.ps1` scripts in
+this repo are scaffolding for that future release flow (they download a
+release artifact that doesn't exist yet); don't run them until a tagged
+release actually exists. Two ways that work today:
 
-#### Linux
+### Homebrew (macOS/Linux)
 ```bash
-sudo bash <(curl -fsSL https://raw.githubusercontent.com/Mullassery/Himalayas-Browser/main/packaging/linux-install.sh)
+brew tap mullassery/himalayas-browser https://github.com/Mullassery/Himalayas-Browser
+brew install --HEAD himalayas
 ```
 
-**Supports**: Ubuntu 20.04+, Debian 11+, Fedora 35+, Arch, and other distributions
-
-#### macOS
-```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/Mullassery/Himalayas-Browser/main/packaging/macos-install.sh)
-```
-
-**Supports**: macOS 11+ (Intel and Apple Silicon)
-
-#### Windows (PowerShell as Administrator)
-```powershell
-Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
-iex (New-Object System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/Mullassery/Himalayas-Browser/main/packaging/windows-install.ps1')
-```
-
-**Supports**: Windows 10+
-
-### Download Installers
-
-Visit [Releases](https://github.com/Mullassery/Himalayas-Browser/releases) to download:
-- **Windows**: `himalayas-x.y.z-x86_64.msi` or `.zip`
-- **macOS**: `himalayas-x.y.z-universal.dmg`
-- **Linux**: `himalayas_x.y.z_amd64.deb` or `.rpm`
+This builds from source via `cargo` (see `Formula/himalayas.rb`) — there's
+no hosted binary yet, so `--HEAD` (build from the repo's default branch) is
+required until a tagged release exists.
 
 ### Install from Source
 
@@ -100,27 +86,10 @@ cargo build --release
 ./target/release/himalayas
 
 # Or install system-wide
-sudo cp target/release/himalayas /usr/local/bin/
+cargo install --path . --locked
 ```
 
 **Requirements**: Rust 1.75+, Cargo
-
-### Package Managers
-
-#### Homebrew (macOS)
-```bash
-brew install mullassery/himalayas/himalayas
-```
-
-#### Chocolatey (Windows)
-```powershell
-choco install himalayas
-```
-
-#### Apt (Ubuntu/Debian)
-```bash
-sudo apt install himalayas
-```
 
 ---
 

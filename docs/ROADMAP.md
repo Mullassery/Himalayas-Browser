@@ -595,14 +595,10 @@ Ctrl+Alt+B      → Open browser
 - Gesture support
 - Haptic feedback (modern devices)
 
-**Linux libinput**
+**Linux libinput** (including lightweight Linux-based laptops, which use the same protocol)
 - Standard libinput protocol
 - Gesture support
 - Multi-touch detection
-
-**ChromeOS**
-- Native trackpad support
-- Chrome OS gestures
 
 ---
 
@@ -960,8 +956,7 @@ pub trait InputExtension {
 ### Platform-Specific Tests
 - Windows Precision Touchpad
 - macOS Force Touch
-- Linux libinput
-- ChromeOS trackpad
+- Linux libinput (including lightweight Linux-based laptops)
 
 ---
 

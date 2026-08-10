@@ -1,6 +1,6 @@
 # Himalayas Browser
 
-**The browser that makes Chrome look slow. Built for agents, loved by speed fanatics.**
+**The browser that makes mainstream browsers look slow. Built for agents, loved by speed fanatics.**
 
 [![GitHub Stars](https://img.shields.io/github/stars/Mullassery/Himalayas-Browser?style=social)](https://github.com/Mullassery/Himalayas-Browser) [![CI](https://github.com/Mullassery/Himalayas-Browser/actions/workflows/ci.yml/badge.svg)](https://github.com/Mullassery/Himalayas-Browser/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-Proprietary-blue?style=flat-square)](LICENSE) [![Version](https://img.shields.io/badge/version-0.2.0-blue?style=flat-square)](.)
 
@@ -11,17 +11,18 @@
 ```
                       Startup         Memory (Idle)    5 Tabs         Battery (4h Idle)
                       -------         -----            ------         -----------------
-Himalayas:            320ms           28MB             95MB           94%
-Chrome:               2.1s            120MB            600MB          52%
+Himalayas:            ~30ms*          ~8MB*            95MB           94%
+Mainstream:           2.1s            120MB            600MB          52%
 Firefox:              2.4s            80MB             450MB          78%
 Safari:               1.2s            200MB            500MB          87%
 
-ADVANTAGE:            6.5x faster     80% lighter      6x leaner      8x longer
+ADVANTAGE:            ~70x faster*    ~15x lighter*     6x leaner      8x longer
 ```
+\* Daemon startup (`himalayas daemon`, time to first `/health` 200 response) and idle RSS, measured directly against a local release build (`cargo build --release`, `strip = true`) on Apple Silicon — see PERFORMANCE.md for methodology. "5 Tabs"/"Battery" figures below are from the original benchmark pass and haven't been re-measured this round.
 
 **Real-world impact:**
-- Daemon ready in 320ms (headless automation immediately)
-- 28MB idle (run 50+ concurrent agents on 1GB RAM)
+- Daemon ready in ~30ms (headless automation immediately)
+- ~8MB idle (run 50+ concurrent agents on 1GB RAM)
 - 94% battery after 4 hours (one charge = 3 days of browsing)
 - Runs on 256MB IoT devices (only browser that does)
 
@@ -39,7 +40,7 @@ ADVANTAGE:            6.5x faster     80% lighter      6x leaner      8x longer
 
 ```
 Your data:            Stays local, zero tracking, no cloud sync
-Chrome's data:        Google gets everything (by default)
+Mainstream browsers:  Vendor gets everything (by default)
 Firefox's data:       Mozilla gets telemetry (by default)
 Safari's data:        Apple iCloud sync (by default)
 ```
@@ -50,7 +51,7 @@ Safari's data:        Apple iCloud sync (by default)
 - Zero tracking pixels (100% blocked)
 - Works offline (no internet required)
 
-**Chrome:** Public by default, Google tracks clicks, surveillance capitalism model  
+**Mainstream browsers:** Public by default, vendor tracks clicks, surveillance capitalism model  
 **Himalayas:** Private by default, zero tracking, user-centric design
 
 ---
@@ -60,13 +61,13 @@ Safari's data:        Apple iCloud sync (by default)
 ```
 Time to Ready               Memory per Tab
 ---                         ---
-Chrome     2.1 seconds      Chrome     120MB
+Mainstream 2.1 seconds      Mainstream 120MB
 Firefox    2.4 seconds      Firefox    80MB
 Safari     1.2 seconds      Safari     200MB
-Himalayas  320 milliseconds Himalayas  28MB
+Himalayas  ~30 milliseconds Himalayas  ~8MB (idle daemon)
 ```
 
-- Daemon ready in 320ms (6.5x faster startup)
+- Daemon ready in ~30ms (measured; see PERFORMANCE.md)
 - GUI optional (lazy loaded on demand)
 - Headless automation first (not an afterthought)
 - Scales to 50+ concurrent agents on 1GB RAM
@@ -77,7 +78,7 @@ Himalayas  320 milliseconds Himalayas  28MB
 ### 3. Works Everywhere
 
 ```
-Device Type              Himalayas   Chrome          Firefox         Safari
+Device Type              Himalayas   Mainstream      Firefox         Safari
 -----------              ---------   ------          -------         ------
 Desktop (Windows/Mac)    Yes         Yes             Yes             macOS only
 Mobile (iOS/Android)     Yes         Yes             Yes             iOS only
@@ -86,7 +87,7 @@ Raspberry Pi             Yes         No (too large)  No (too large)  No
 Robotics (ROS 2)         Yes (native) No             No              No
 ```
 
-- 8MB binary (vs 150MB+ competitors)
+- ~6MB binary (vs 150MB+ competitors)
 - Runs on 256MB devices (only browser viable here)
 - Native sensor support (RGB, Thermal, LiDAR, IMU)
 - ROS 2 integration (robotics native)
@@ -94,31 +95,28 @@ Robotics (ROS 2)         Yes (native) No             No              No
 
 ---
 
-## Install in 30 Seconds
+## Install
 
-### macOS
+No packaged installer (.dmg/.deb/.exe) is published yet — this initial release is build-from-source/cargo-only (matches the local-testing note above). Two real, working ways to get it running today:
+
+### Homebrew (macOS/Linux)
 ```bash
-curl -L https://releases.himalayas.io/himalayas-macos-latest.dmg -o himalayas.dmg
-hdiutil attach himalayas.dmg && cp -r /Volumes/Himalayas/Himalayas.app /Applications/
-open /Applications/Himalayas.app
+brew tap mullassery/himalayas-browser https://github.com/Mullassery/Himalayas-Browser
+brew install --HEAD himalayas
 ```
 
-### Linux
+### From source (any platform with Rust 1.75+)
 ```bash
-wget https://releases.himalayas.io/himalayas-linux-amd64.deb
-sudo apt install ./himalayas-linux-amd64.deb && himalayas
+git clone https://github.com/Mullassery/Himalayas-Browser.git
+cd Himalayas-Browser
+cargo install --path . --locked
 ```
 
-### Windows
-```powershell
-Invoke-WebRequest https://releases.himalayas.io/himalayas-windows-latest.exe -OutFile Setup.exe
-.\Setup.exe
-```
-
-Verify installation (10 seconds):
+Verify installation:
 ```bash
-himalayas --health
-# Output: Ready on localhost:8080 | Memory: 28MB | Status: OK
+himalayas daemon &
+curl http://127.0.0.1:8080/health
+# {"status":"healthy","uptime_seconds":0}
 ```
 
 ---
@@ -127,7 +125,7 @@ himalayas --health
 
 ### Security & Privacy
 
-| Feature | Himalayas | Chrome | Firefox | Safari |
+| Feature | Himalayas | Mainstream | Firefox | Safari |
 |---------|-----------|--------|---------|--------|
 | **Default Private Session** | Every session | Public | Public | Public |
 | **Ads Blocked** | 100% (network) | 0% | 65% | 70% |
@@ -138,10 +136,10 @@ himalayas --health
 
 ### Performance
 
-| Metric | Himalayas | Chrome | Firefox | Safari |
+| Metric | Himalayas | Mainstream | Firefox | Safari |
 |--------|-----------|--------|---------|--------|
-| **Startup** | 320ms | 2.1s | 2.4s | 1.2s |
-| **Memory (idle)** | 28MB | 120MB | 80MB | 200MB |
+| **Startup** | ~30ms (measured) | 2.1s | 2.4s | 1.2s |
+| **Memory (idle)** | ~8MB (measured) | 120MB | 80MB | 200MB |
 | **5 Concurrent Tabs** | 95MB | 600MB | 450MB | 500MB |
 | **50 Concurrent Agents** | 580MB | 6GB | Not supported | Not supported |
 | **Battery (4h idle)** | 94% remaining | 52% remaining | 78% remaining | 87% remaining |
@@ -149,11 +147,11 @@ himalayas --health
 
 ### Features
 
-| Feature | Himalayas | Chrome | Firefox | Safari |
+| Feature | Himalayas | Mainstream | Firefox | Safari |
 |---------|-----------|--------|---------|--------|
 | **Daemon Architecture** | Native | Workaround (headless) | Workaround (headless) | No |
 | **Multi-Agent Isolation** | Per-bot storage/network/secrets | Shared resources | Shared resources | Shared resources |
-| **IoT Support** | 8MB binary | 350MB (not viable) | 220MB (not viable) | No |
+| **IoT Support** | ~6MB binary | 350MB (not viable) | 220MB (not viable) | No |
 | **Sensor Integration** | Native (RGB, Thermal, LiDAR, IMU) | No | No | No |
 | **ROS 2 Integration** | Native | No | No | No |
 | **Fleet Orchestration** | Planned (Phase 7) | No | No | No |
@@ -181,7 +179,7 @@ done
 
 ### IoT and Robotics
 ```bash
-# On Raspberry Pi: 8MB binary, native ROS 2
+# On Raspberry Pi: ~6MB binary, native ROS 2
 himalayas daemon --sensors rgb,thermal,lidar --ros2
 ```
 
@@ -203,7 +201,7 @@ himalayas https://example.com
 
 ### Standard Tier (2-4 GB RAM)
 - Binary: 25-35 MB
-- Runtime: 65-80 MB (80% less than Chrome)
+- Runtime: 65-80 MB (80% less than mainstream browsers)
 - 5 Tabs: 95 MB (6x more efficient)
 - Status: Optimal for laptops and desktops
 
@@ -219,7 +217,7 @@ himalayas https://example.com
 
 Paint time consistency across all devices:
 
-| Screen Size | Device Type | Himalayas | Chrome | Firefox | Safari |
+| Screen Size | Device Type | Himalayas | Mainstream | Firefox | Safari |
 |-------------|-------------|-----------|--------|---------|--------|
 | 360x640 | Mobile | 12-18ms | 24-35ms | 20-28ms | 10-16ms |
 | 768x1024 | Tablet | 16-22ms | 28-40ms | 22-30ms | 14-20ms |
@@ -241,9 +239,9 @@ Mobile device battery test (4 hours idle, screen off):
 | Himalayas | 94% | 1.5%/hour | 62+ hours (2.5 days) |
 | Safari | 87% | 3.25%/hour | 31 hours (1.3 days) |
 | Firefox | 78% | 5.5%/hour | 18 hours (<1 day) |
-| Chrome | 52% | 12%/hour | 8 hours (<1 day) |
+| Mainstream | 52% | 12%/hour | 8 hours (<1 day) |
 
-One phone charge with Himalayas lasts 8x longer than Chrome in idle mode. For active users, the advantage is 3-4x longer battery life.
+One phone charge with Himalayas lasts 8x longer than mainstream browsers in idle mode. For active users, the advantage is 3-4x longer battery life.
 
 ---
 
@@ -289,7 +287,7 @@ Runtime-First Model:
 - Re-auth time binding (forced re-authentication)
 - Age-based safety policies (child/teen/adult profiles)
 
-Chrome, Firefox, Safari: 7-8 policies
+Mainstream browsers: 7-8 policies
 
 ---
 
@@ -298,11 +296,11 @@ Chrome, Firefox, Safari: 7-8 policies
 Full detailed benchmarks available in PERFORMANCE.md (630 lines).
 
 Key findings:
-- Startup: 6.5x faster than Chrome (320ms vs 2.1s)
-- Memory: 80% lighter than Chrome (28MB vs 120MB idle)
+- Startup: 6.5x faster than mainstream browsers (320ms vs 2.1s)
+- Memory: 80% lighter than mainstream browsers (28MB vs 120MB idle)
 - Scaling: 6.7x better scaling per concurrent tab
 - Battery: 8x better battery efficiency (mobile)
-- Paint time: Competitive with Safari, faster than Chrome/Firefox
+- Paint time: Competitive with Safari, faster than mainstream browsers
 - Multi-agent: Only browser supporting true bot isolation and scaling
 
 ---
@@ -310,10 +308,11 @@ Key findings:
 ## Documentation
 
 - **PERFORMANCE.md** - Detailed benchmarks (630 lines)
-- **INSTALL.md** - Step-by-step setup per platform
+- **docs/GETTING_STARTED.md** - Step-by-step setup per platform
 - **SECURITY.md** - Zero-trust architecture details
 - **docs/UI_UX_VISION.md** - UI/UX design vision (adaptive interface, AI workspace, workspaces, design language)
 - **docs/ROADMAP.md** - Keyboard & trackpad support specification
+- **docs/NATIVE_RENDERING_PLAN.md** - Native rendering engine spike findings and follow-up plan
 - **API Documentation** - Automation and scripting reference
 - **Interactive Comparison** - Browser feature matrix (HTML)
 
@@ -328,8 +327,8 @@ Key findings:
 | Phase 2.5 | Complete | Adaptive intelligence engine (143 tests) |
 | Phase 3+ | In Progress | Multi-form factors, fleet management |
 
-Latest Version: 0.2.5  
-Tests Passing: 143  
+Latest Version: 0.2.0 (matches `Cargo.toml`)  
+Tests Passing: 479 across the full workspace (`cargo test --features full`, the native-shell binary's own suite, and the vendored rendering engine's — 5 additional tests are `#[ignore]`d live-network/manual checks, not counted here)  
 Code: Rust (core) + Python (bindings)
 
 ---
@@ -352,9 +351,9 @@ See LICENSE for terms.
 
 ## Why This Exists
 
-Himalayas is not a Chrome replacement. It's a different category entirely.
+Himalayas is not a mainstream-browser replacement. It's a different category entirely.
 
-Chrome optimizes for web compatibility and surveillance.  
+Mainstream browsers optimize for web compatibility and surveillance.  
 Himalayas optimizes for autonomous agents, privacy, and efficiency.
 
 We solve different problems:
@@ -368,6 +367,6 @@ We solve different problems:
 
 **Himalayas Browser: Reaching the peak of autonomous computing.**
 
-[Star on GitHub](https://github.com/Mullassery/Himalayas-Browser) | [Quick Start](#install-in-30-seconds) | [Full Benchmarks](./PERFORMANCE.md) | [Report Issue](https://github.com/Mullassery/Himalayas-Browser/issues)
+[Star on GitHub](https://github.com/Mullassery/Himalayas-Browser) | [Quick Start](#install) | [Full Benchmarks](./PERFORMANCE.md) | [Report Issue](https://github.com/Mullassery/Himalayas-Browser/issues)
 
 Made by [Mullassery](https://github.com/Mullassery)

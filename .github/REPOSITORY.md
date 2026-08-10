@@ -8,7 +8,7 @@ The world's first truly agent-native browser platform. A fundamentally different
 
 ## Description
 
-Himalayas Browser is an agent-native operating system built on Rust. Unlike traditional browsers (Chrome, Firefox, Safari), Himalayas is:
+Himalayas Browser is an agent-native operating system built on Rust. Unlike traditional browsers (mainstream browsers, Firefox, Safari), Himalayas is:
 
 - **Runtime-first**: Headless by default, GUI optional
 - **Agent-native**: Agents are primary citizens, not guests
