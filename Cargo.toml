@@ -14,6 +14,11 @@ categories = ["command-line-utilities", "network-programming"]
 name = "himalayas"
 path = "src/main.rs"
 
+[[bin]]
+name = "himalayas-desktop"
+path = "src/bin/desktop.rs"
+required-features = ["js_engine"]
+
 [lib]
 name = "himalayas"
 path = "src/lib.rs"
@@ -50,6 +55,46 @@ fxhash = "0.2"
 toml = "0.8"
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
 scraper = "0.20"
+# Native save/open dialogs for bookmark import/export (desktop.rs) — same
+# version blitz-shell already pins in its own, separate Cargo workspace
+# (vendor/blitz/Cargo.toml), used here directly rather than plumbing a new
+# ShellProvider method: unlike zoom (which needs `Viewport`, only reachable
+# from inside blitz-shell's `WindowState`), a file dialog has no engine
+# state to reach — it's a self-contained OS call desktop.rs can make itself.
+rfd = { version = "0.17", default-features = false, features = ["xdg-portal"] }
+
+# js_engine (native rendering spike, see docs/NATIVE_RENDERING_PLAN.md): a
+# native window (dioxus-native/Himalayas DOM chrome) with a scripted content
+# pane (Boa JS engine over a hand-rolled DOM binding surface). Vendored under
+# vendor/blitz/ rather than a git fork so no external push is needed; see
+# that directory's Cargo.toml for the upstream commit + required patches.
+#
+# default-features intentionally left on (bitten twice already by trimming
+# them on this exact dependency: clipboard copy/paste and the overlay
+# scrollbar both silently stopped working because `default-features = false`
+# dropped dioxus-native's own `clipboard` default along with several others
+# never even noticed missing until a live bug report — see
+# docs/NATIVE_RENDERING_PLAN.md). `prelude` (Dioxus hooks/signals macros) and
+# `scrollbars` are the only two real additions beyond dioxus-native's own
+# defaults (`net`/`system-fonts`/`vello-hybrid` are already default-on).
+dioxus-native = { path = "vendor/blitz/packages/dioxus-native", optional = true, features = ["prelude", "scrollbars"] }
+# default-features intentionally left on: blitz-dom's own defaults (svg, woff,
+# accessibility, system-fonts, file-input, custom-widget) are all things a
+# real page routinely needs (svg logos/icons especially — most images on
+# most real sites turned out to be svg, not raster) rather than footprint
+# knobs worth trimming for this desktop-tier build.
+blitz-dom = { path = "vendor/blitz/packages/blitz-dom", optional = true }
+blitz-html = { path = "vendor/blitz/packages/blitz-html", optional = true, default-features = false }
+# `cache` (a real disk HTTP cache honoring Cache-Control/ETag/Last-Modified,
+# via reqwest-middleware + http-cache-reqwest) is enabled explicitly below
+# in the `js_engine` feature list, not here — it was fully implemented
+# upstream but never turned on, so every subresource fetch (CSS/images/
+# fonts) hit the network on every load even for cacheable responses. See
+# docs/NATIVE_RENDERING_PLAN.md's caching section.
+blitz-net = { path = "vendor/blitz/packages/blitz-net", optional = true, default-features = false }
+blitz-traits = { path = "vendor/blitz/packages/blitz-traits", optional = true, default-features = false }
+linebender_resource_handle = { version = "0.1", optional = true }
+boa_engine = { version = "0.20", optional = true }
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3", features = ["winuser", "winbase", "processthreadsapi", "winnt"] }
@@ -63,13 +108,43 @@ objc-foundation = "0.1"
 x11-clipboard = "0.9"
 
 [features]
-default = ["india_stack"]
+default = ["india_stack", "desktop_ui"]
 india_stack = []
-full = ["india_stack"]
+# Browser UI shell (served at /app). Excludable for footprint-constrained
+# IoT/embedded builds via --no-default-features --features india_stack.
+desktop_ui = []
+# Native rendering spike (himalayas-desktop binary): a real GPU-rendered
+# window with JS-scripted content, not just the /app web shell. Off by
+# default — large dependency tree (winit/wgpu/vello/stylo/boa), only
+# meaningful on Standard-tier-and-above hardware. See
+# docs/NATIVE_RENDERING_PLAN.md.
+js_engine = [
+    "dep:dioxus-native",
+    "dep:blitz-dom",
+    "dep:blitz-html",
+    "dep:blitz-net",
+    "blitz-net/cache",
+    "dep:blitz-traits",
+    "dep:linebender_resource_handle",
+    "dep:boa_engine",
+]
+full = ["india_stack", "desktop_ui"]
 
 [dev-dependencies]
 tokio-test = "0.4"
 mockito = "1.5"
+
+# Required for the js_engine feature's `svg` support (blitz-dom's default
+# features, re-enabled in the blitz-dom dependency above). `[patch]` only
+# applies to the workspace whose Cargo.toml declares it — vendor/blitz's own
+# [patch.crates-io] (same entries) only takes effect when building *inside*
+# vendor/blitz directly; this crate is a separate, outer workspace root that
+# needs its own copy to resolve the same transitive usvg/anyrender_svg deps.
+# See docs/NATIVE_RENDERING_PLAN.md for what these patches are and why.
+[patch.crates-io]
+usvg = { git = "https://github.com/DioxusLabs/resvg", rev = "3289a9b0c3d3352692bf5acdf5f6e6949cdb57b5" }
+anyrender = { git = "https://github.com/DioxusLabs/anyrender", rev = "dcd219746ff13a5832beab552f3f7f494d1bd84d" }
+anyrender_svg = { git = "https://github.com/DioxusLabs/anyrender", rev = "dcd219746ff13a5832beab552f3f7f494d1bd84d" }
 
 [profile.release]
 opt-level = 3
