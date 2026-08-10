@@ -1,1 +1,5 @@
 /target
+# Nested workspace build output — vendor/blitz is a separate Cargo
+# workspace (see its own Cargo.toml), so its `target/` isn't caught by the
+# rule above. Matches at any depth in case more vendored workspaces show up.
+**/target
