@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Himalayas Browser</title>
+<link rel="stylesheet" href="/app/style.css">
+</head>
+<body>
+<div id="app" :class="{ 'sidebar-collapsed': !sidebarOpen }">
+
+  <!-- Smart Sidebar rail: docs/UI_UX_VISION.md #3 -->
+  <div id="rail">
+    <button v-for="section in sidebarSections" :key="section.id"
+            class="rail-btn" :class="{ active: activeSection === section.id }"
+            :title="section.label"
+            @click="selectSection(section.id)">{{ section.icon }}</button>
+    <div class="rail-spacer"></div>
+    <button class="rail-btn" title="Permissions" @click="notify('Permission dashboard coming soon')">🔒</button>
+    <button class="rail-btn" :class="{ active: aiOpen }" title="AI workspace (Ctrl+Space)" @click="toggleAi()">✨</button>
+  </div>
+
+  <!-- Intelligent address bar: #5 -->
+  <div id="topbar">
+    <button class="icon-btn" title="Toggle sidebar" @click="sidebarOpen = !sidebarOpen">☰</button>
+    <button class="icon-btn" title="Back" @click="notify('Back')">←</button>
+    <button class="icon-btn" title="Forward" @click="notify('Forward')">→</button>
+    <div id="addressbar">
+      <span class="intent-badge" :data-intent="intent.kind">{{ intent.label }}</span>
+      <input v-model="addressInput" placeholder="Ask anything or enter a website…"
+             @keydown.enter="submitAddress">
+    </div>
+    <button class="icon-btn" title="Command palette (Ctrl/Cmd+Shift+P)" @click="openPalette()">⌘</button>
+    <button class="icon-btn" title="AI workspace" @click="toggleAi()">✨</button>
+  </div>
+
+  <!-- Dynamic toolbar: #1 adaptive interface + #6 dynamic toolbars -->
+  <div id="toolbar">
+    <button v-for="ctx in contexts" :key="ctx.id"
+            class="context-chip" :class="{ active: activeContext === ctx.id }"
+            @click="activeContext = ctx.id">{{ ctx.icon }} {{ ctx.label }}</button>
+    <div class="toolbar-sep"></div>
+    <button v-for="action in currentToolbarActions" :key="action"
+            class="toolbar-action" @click="notify(action + ' (demo)')">{{ action }}</button>
+  </div>
+
+  <!-- Vertical tabs + smart sidebar sections: #3 #4 -->
+  <div id="sidebar">
+    <div id="sidebar-search">
+      <input v-model="sidebarQuery" placeholder="Search…">
+    </div>
+    <div id="sidebar-panel-title">{{ activeSectionLabel }}</div>
+
+    <div id="tab-list" v-if="activeSection === 'tabs'">
+      <div v-for="tab in filteredTabs" :key="tab.id"
+           class="tab-item" :class="{ active: tab.id === activeTabId, sleeping: tab.sleeping }"
+           @click="activateTab(tab.id)">
+        <div class="tab-favicon"></div>
+        <div class="tab-title">{{ tab.title }}</div>
+        <div class="tab-meta">{{ tab.memoryMb }}MB · {{ tab.isolation }}</div>
+        <button class="tab-close" title="Close tab" @click.stop="closeTab(tab.id)">✕</button>
+      </div>
+    </div>
+    <div id="tab-list" v-else>
+      <div v-for="item in filteredSectionItems" :key="item"
+           class="tab-item" @click="notify(activeSectionLabel + ': ' + item)">
+        <div class="tab-favicon"></div>
+        <div class="tab-title">{{ item }}</div>
+      </div>
+    </div>
+
+    <button id="new-tab-btn" v-if="activeSection === 'tabs'" @click="newTab()">+ New tab</button>
+  </div>
+
+  <!-- New Tab dashboard / content area: #12 -->
+  <div id="content">
+    <template v-if="activeTab && activeTab.url !== 'himalayas://newtab'">
+      <div class="widget" style="max-width:640px;margin:10vh auto;text-align:center;">
+        <h3>Placeholder</h3>
+        <p>{{ activeTab.url }}</p>
+        <p style="color:var(--text-muted)">Page rendering isn't wired up yet — this shell is the UI foundation from docs/UI_UX_VISION.md.</p>
+      </div>
+    </template>
+    <div class="dashboard-grid" v-else>
+      <div class="widget">
+        <h3>Continue Reading</h3>
+        <ul><li v-for="i in dashboard.continueReading" :key="i"><span>{{ i.title }}</span><span>{{ i.progress }}</span></li></ul>
+      </div>
+      <div class="widget">
+        <h3>Pinned Sites</h3>
+        <ul><li v-for="i in dashboard.pinned" :key="i"><span>{{ i }}</span></li></ul>
+      </div>
+      <div class="widget">
+        <h3>Recent AI Chats</h3>
+        <ul><li v-for="i in dashboard.aiChats" :key="i"><span>{{ i }}</span></li></ul>
+      </div>
+      <div class="widget">
+        <h3>Notes</h3>
+        <ul><li v-for="i in dashboard.notes" :key="i"><span>{{ i }}</span></li></ul>
+      </div>
+      <div class="widget">
+        <h3>Downloads</h3>
+        <ul><li v-for="i in dashboard.downloads" :key="i.name"><span>{{ i.name }}</span><span>{{ i.size }}</span></li></ul>
+      </div>
+      <div class="widget">
+        <h3>This device</h3>
+        <ul>
+          <li><span>Tier</span><span>{{ device.tier || '…' }}</span></li>
+          <li><span>Tab sessions</span><span>{{ device.isolation }}</span></li>
+          <li><span>UI</span><span>{{ device.ui_enabled ? 'enabled' : 'disabled' }}</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Floating AI workspace: #2 -->
+  <div id="ai-panel" :class="[aiOpen ? 'open' : '', aiDock]">
+    <div id="ai-panel-header">
+      <strong>✨ AI Workspace</strong>
+      <button class="icon-btn" title="Dock left" @click="aiDock = 'dock-left'">⟵</button>
+      <button class="icon-btn" title="Float" @click="aiDock = 'floating'">◫</button>
+      <button class="icon-btn" title="Dock right" @click="aiDock = 'dock-right'">⟶</button>
+      <button class="icon-btn" title="Fullscreen" @click="aiDock = 'fullscreen'">⤢</button>
+      <button class="icon-btn" title="Close" @click="aiOpen = false">✕</button>
+    </div>
+    <div id="ai-panel-actions">
+      <button class="ai-action" v-for="a in aiActions" :key="a" @click="runAiAction(a)">{{ a }}</button>
+    </div>
+    <div id="ai-panel-body">
+      <p v-for="(line, i) in aiLog" :key="i">{{ line }}</p>
+      <p v-if="!aiLog.length">Pick an action above, or ask something in the address bar.</p>
+    </div>
+  </div>
+
+  <!-- Command palette: #20 -->
+  <div id="palette-overlay" :class="{ open: paletteOpen }" @click.self="paletteOpen = false">
+    <div id="palette">
+      <input ref="paletteInput" v-model="paletteQuery" placeholder="Type a command…"
+             @keydown.down.prevent="paletteMove(1)" @keydown.up.prevent="paletteMove(-1)"
+             @keydown.enter="paletteRun()" @keydown.esc="paletteOpen = false">
+      <div id="palette-list">
+        <div v-for="(cmd, i) in filteredCommands" :key="cmd.name"
+             class="palette-item" :class="{ selected: i === paletteIndex }"
+             @mouseenter="paletteIndex = i" @click="paletteRun()">
+          <span>{{ cmd.name }}</span><span>{{ cmd.shortcut || '' }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Notification chips: #13 -->
+  <div id="notifications">
+    <div class="chip" v-for="n in notifications" :key="n.id">{{ n.text }}</div>
+  </div>
+
+</div>
+
+<script src="/app/vendor/vue.global.prod.js"></script>
+<script src="/app/app.js"></script>
+</body>
+</html>

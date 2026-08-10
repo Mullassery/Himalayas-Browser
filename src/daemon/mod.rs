@@ -6,7 +6,9 @@ use std::sync::Arc;
 use uuid::Uuid;
 use tracing::info;
 
+use crate::browser::Browser;
 use crate::health::HealthMonitor;
+use crate::intelligence::device_detection::{DeviceCapabilities, DeviceTier};
 use crate::metrics::MetricsCollector;
 use crate::server::HealthServer;
 
@@ -18,6 +20,10 @@ pub struct Config {
     pub host: String,
     pub port: u16,
     pub environment: String,
+    /// Serve the browser UI at /app. `None` = auto-detect from device tier
+    /// (on for Standard tier and above, off for LowMemory/Constrained).
+    #[serde(default)]
+    pub ui: Option<bool>,
 }
 
 impl Config {
@@ -49,8 +55,19 @@ impl Default for Config {
             host: "127.0.0.1".to_string(),
             port: 8080,
             environment: "development".to_string(),
+            ui: None,
         }
     }
+}
+
+/// Tiers with enough headroom to keep the UI (and per-tab isolated sessions)
+/// on by default without being asked. Below this, both stay off until the
+/// user opts in with --ui.
+fn tier_supports_desktop_features(tier: DeviceTier) -> bool {
+    matches!(
+        tier,
+        DeviceTier::Standard | DeviceTier::HighCapability | DeviceTier::UltraCapability
+    )
 }
 
 pub struct Daemon {
@@ -58,6 +75,13 @@ pub struct Daemon {
     health_server: SocketAddr,
     health_monitor: Arc<HealthMonitor>,
     metrics_collector: Arc<MetricsCollector>,
+    device_tier: DeviceTier,
+    ui_enabled: bool,
+    /// The headless browser runtime backing the `/agent` HTTP API — see
+    /// `src/server.rs`. One `Browser` per daemon process, shared across every
+    /// agent session (each session still gets its own isolated `Session`
+    /// inside it, same as `himalayas-desktop`'s native tabs).
+    browser: Arc<Browser>,
 }
 
 impl Daemon {
@@ -67,14 +91,35 @@ impl Daemon {
         let addr = format!("{}:{}", config.host, config.port)
             .parse::<SocketAddr>()?;
 
-        info!(daemon_id = %config.id, address = %addr, environment = %config.environment, "Daemon created");
+        let device_tier = DeviceCapabilities::detect()
+            .map(|caps| caps.device_tier())
+            .unwrap_or(DeviceTier::Standard);
+
+        let ui_enabled = config.ui.unwrap_or_else(|| {
+            let auto = cfg!(feature = "desktop_ui") && tier_supports_desktop_features(device_tier);
+            info!(?device_tier, ui_enabled = auto, "Browser UI auto-detected from device tier");
+            auto
+        }) && cfg!(feature = "desktop_ui");
+
+        info!(daemon_id = %config.id, address = %addr, environment = %config.environment, ui_enabled, "Daemon created");
 
         Ok(Self {
             config,
             health_server: addr,
             health_monitor: Arc::new(HealthMonitor::new()),
             metrics_collector: Arc::new(MetricsCollector::new()),
+            device_tier,
+            ui_enabled,
+            browser: Arc::new(Browser::new()?),
         })
+    }
+
+    pub fn ui_enabled(&self) -> bool {
+        self.ui_enabled
+    }
+
+    pub fn device_tier(&self) -> DeviceTier {
+        self.device_tier
     }
 
     pub fn health_addr(&self) -> SocketAddr {
@@ -102,6 +147,9 @@ impl Daemon {
         let health_server = HealthServer::new(
             self.health_monitor.clone(),
             self.metrics_collector.clone(),
+            self.ui_enabled,
+            self.device_tier,
+            self.browser.clone(),
         );
 
         let server_addr = self.health_server;

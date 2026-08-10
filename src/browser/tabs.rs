@@ -42,6 +42,19 @@ impl Tab {
     }
 }
 
+/// Controls whether each tab gets its own isolated session (cookies, storage,
+/// history) or shares one session with every other tab in the manager.
+///
+/// Isolated sessions cost one `Session` (cookie jar + storage map) per tab, so
+/// they're only worth the memory on capable hardware — see
+/// `DeviceTier` in `crate::intelligence::device_detection` for the default
+/// policy per device tier.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum IsolationMode {
+    Isolated,
+    Shared,
+}
+
 /// Tab manager for multi-tab sessions
 pub struct TabManager {
     tabs: Arc<DashMap<String, Tab>>,
@@ -59,15 +72,25 @@ impl TabManager {
     }
 
     pub fn create_tab(&self, url: String) -> Result<String> {
-        debug!("Creating tab with URL: {}", url);
+        self.create_tab_with_session(url, self.session_id.clone())
+    }
 
-        let tab = Tab::new(self.session_id.clone(), url);
+    /// Create a tab bound to a specific session (used for isolated per-tab sessions).
+    pub fn create_tab_with_session(&self, url: String, session_id: String) -> Result<String> {
+        debug!("Creating tab with URL: {} (session: {})", url, session_id);
+
+        let tab = Tab::new(session_id, url);
         let tab_id = tab.id.clone();
 
         self.tabs.insert(tab_id.clone(), tab);
 
         info!("Tab created: {}", tab_id);
         Ok(tab_id)
+    }
+
+    /// The default (shared) session id this manager was created with.
+    pub fn session_id(&self) -> &str {
+        &self.session_id
     }
 
     pub fn close_tab(&self, tab_id: &str) -> Result<()> {

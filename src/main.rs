@@ -8,6 +8,7 @@ mod browser;
 mod config;
 mod daemon;
 mod health;
+mod intelligence;
 mod metrics;
 mod permission;
 mod server;
@@ -28,6 +29,15 @@ struct Args {
     /// Enable verbose logging
     #[arg(short, long, global = true)]
     verbose: bool,
+
+    /// Serve the browser UI at /app. Off by default on low-memory/constrained
+    /// hardware, on by default on Standard tier and above; this forces it on.
+    #[arg(long, global = true, conflicts_with = "no_ui")]
+    ui: bool,
+
+    /// Never serve the browser UI at /app, even on capable hardware.
+    #[arg(long, global = true)]
+    no_ui: bool,
 }
 
 #[derive(Subcommand, Debug)]
@@ -63,7 +73,16 @@ async fn main() -> Result<()> {
         _ => {
             info!("Starting daemon...");
 
-            let config = daemon::Config::load(&args.config)?;
+            let ui_override = if args.no_ui {
+                Some(false)
+            } else if args.ui {
+                Some(true)
+            } else {
+                None
+            };
+
+            let mut config = daemon::Config::load(&args.config)?;
+            config.ui = ui_override.or(config.ui);
             let daemon = daemon::Daemon::new(config).await?;
 
             info!("Daemon initialized successfully");

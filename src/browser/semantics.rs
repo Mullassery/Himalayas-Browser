@@ -336,6 +336,85 @@ impl SemanticDOM {
     pub fn find_links(&self) -> &[SemanticLink] {
         &self.links
     }
+
+    /// Real CSS-selector query (`AgentContext::query` in `src/api/mod.rs`) —
+    /// re-parses `html` fresh rather than filtering the already-extracted
+    /// `elements`/`forms`/`links`/`buttons`, since those only cover the
+    /// specific structural roles `parse_elements` looks for (buttons, links,
+    /// form fields), not arbitrary selectors like `.price` or `div.card > a`.
+    /// Role is classified loosely by tag name, not full HTML semantics (any
+    /// matched element that isn't a recognized interactive tag becomes
+    /// `Container`) — good enough for an agent to locate and read/act on a
+    /// match, not a substitute for `parse_buttons`/`parse_links`/`parse_forms`'s
+    /// more careful per-role extraction.
+    pub fn query_selector_all(html: &str, selector: &str) -> Result<Vec<SemanticElement>> {
+        let document = Html::parse_document(html);
+        let parsed_selector = Selector::parse(selector)
+            .map_err(|e| anyhow::anyhow!("invalid selector {selector:?}: {e:?}"))?;
+
+        Ok(document
+            .select(&parsed_selector)
+            .enumerate()
+            .map(|(idx, el)| {
+                let tag = el.value().name();
+                let role = match tag {
+                    "button" => ElementRole::Button,
+                    "a" if el.value().attr("href").is_some() => ElementRole::Link,
+                    "input" | "textarea" | "select" => ElementRole::Input,
+                    "form" => ElementRole::Form,
+                    _ => ElementRole::Container,
+                };
+                let has_real_id = el.value().attr("id").is_some();
+                let id = el
+                    .value()
+                    .attr("id")
+                    .map(str::to_string)
+                    .unwrap_or_else(|| format!("match_{idx}"));
+                let text = own_text(el);
+                let selector_str = if has_real_id { format!("{tag}#{id}") } else { tag.to_string() };
+
+                SemanticElement {
+                    id,
+                    role,
+                    label: text.clone(),
+                    selector: selector_str,
+                    attributes: attrs_map(el),
+                    text,
+                    x: 0.0,
+                    y: 0.0,
+                    width: 0.0,
+                    height: 0.0,
+                    visible: true,
+                }
+            })
+            .collect())
+    }
+
+    /// Walk up from the element with id `element_id` to the nearest
+    /// ancestor `<form>`, returning its id — used by `AgentContext::click`
+    /// to turn "click this submit button" into "submit its form", since the
+    /// flat `SemanticForm`/`SemanticElement` extraction doesn't otherwise
+    /// track parent/child relationships. Only works when `element_id` is a
+    /// real HTML `id` attribute (usable directly as a CSS `#id` selector) —
+    /// the synthetic `button_{n}`-style ids `parse_buttons` assigns to
+    /// id-less buttons won't resolve here, a known limitation matching the
+    /// synthetic-id caveat already documented on `SemanticElement`/`parse_buttons`.
+    pub fn find_enclosing_form_id(html: &str, element_id: &str) -> Option<String> {
+        let document = Html::parse_document(html);
+        let selector = Selector::parse(&format!("#{element_id}")).ok()?;
+        let start = document.select(&selector).next()?;
+
+        let mut node = start.parent();
+        while let Some(n) = node {
+            if let Some(el) = ElementRef::wrap(n) {
+                if el.value().name() == "form" {
+                    return el.value().attr("id").map(str::to_string);
+                }
+            }
+            node = n.parent();
+        }
+        None
+    }
 }
 
 #[cfg(test)]
@@ -476,5 +555,50 @@ mod tests {
 
         let form_elements = dom.find_by_role(ElementRole::Form);
         assert_eq!(form_elements.len(), 1);
+    }
+
+    #[test]
+    fn test_query_selector_all_matches_by_class() {
+        let html = r#"<html><body>
+            <div class="card"><span class="price">$10</span></div>
+            <div class="card"><span class="price">$20</span></div>
+            <div class="other"><span class="price">$30</span></div>
+        </body></html>"#;
+
+        let cards = SemanticDOM::query_selector_all(html, ".card").unwrap();
+        assert_eq!(cards.len(), 2);
+        assert_eq!(cards[0].role, ElementRole::Container);
+
+        let prices = SemanticDOM::query_selector_all(html, ".card .price").unwrap();
+        assert_eq!(prices.len(), 2);
+        assert_eq!(prices[0].text, "$10");
+        assert_eq!(prices[1].text, "$20");
+    }
+
+    #[test]
+    fn test_query_selector_all_rejects_invalid_selector() {
+        let html = "<html><body></body></html>";
+        assert!(SemanticDOM::query_selector_all(html, ":::not-a-selector").is_err());
+    }
+
+    #[test]
+    fn test_find_enclosing_form_id_resolves_button_inside_form() {
+        let html = r#"<html><body>
+            <form id="login">
+                <input id="user" name="username" />
+                <button id="submit-btn">Log In</button>
+            </form>
+        </body></html>"#;
+
+        assert_eq!(
+            SemanticDOM::find_enclosing_form_id(html, "submit-btn"),
+            Some("login".to_string())
+        );
+    }
+
+    #[test]
+    fn test_find_enclosing_form_id_none_outside_form() {
+        let html = r#"<html><body><button id="lonely">Click</button></body></html>"#;
+        assert_eq!(SemanticDOM::find_enclosing_form_id(html, "lonely"), None);
     }
 }

@@ -181,6 +181,75 @@ impl Navigator {
             .unwrap_or_default()
     }
 
+    /// POST `fields` as a form-urlencoded body to `url` — used for
+    /// `<form method="post">` submission (`AgentContext::submit_form` in
+    /// `src/api/mod.rs`); GET forms don't need this, they're just a
+    /// `navigate()` call to `url` with `fields` serialized onto the query
+    /// string instead. Follows a single redirect via `navigate` (standard
+    /// POST-redirect-GET behavior: real servers redirect *after* a POST to a
+    /// plain GET target, so the redirect target itself is fetched with GET,
+    /// reusing `navigate`'s already-tested multi-hop/cookie logic) rather
+    /// than looping POSTs, which would be wrong if a server ever chained
+    /// multiple 3xx responses to the same POST.
+    pub async fn submit_form(
+        &self,
+        url: &str,
+        fields: &HashMap<String, String>,
+        cookies: &CookieJar,
+    ) -> Result<PageContent> {
+        debug!("Submitting form via POST to: {}", url);
+
+        let mut request = self.client.post(url);
+        if let Some(cookie_header) = cookies.to_cookie_header() {
+            request = request.header(reqwest::header::COOKIE, cookie_header);
+        }
+
+        let response = request.form(fields).send().await?;
+        let status = response.status().as_u16();
+
+        // Same header-merging as `fetch_page` (kept separate rather than
+        // shared — this is the only other place a response gets turned into
+        // a header map, and `fetch_page` is small, already-tested code not
+        // worth restructuring for one caller).
+        let mut headers = HashMap::new();
+        for (name, value) in response.headers().iter() {
+            if let Ok(value_str) = value.to_str() {
+                headers
+                    .entry(name.as_str().to_lowercase())
+                    .and_modify(|existing: &mut String| {
+                        existing.push_str(", ");
+                        existing.push_str(value_str);
+                    })
+                    .or_insert_with(|| value_str.to_string());
+            }
+        }
+
+        let mut jar = cookies.clone();
+        for (name, value) in Self::parse_set_cookie_headers(&headers) {
+            jar.set(name, value);
+        }
+
+        if (300..400).contains(&status) {
+            if let Some(location) = headers.get("location") {
+                let next_url = self.follow_redirect(location, url)?;
+                info!("Form POST to {} redirected to {} (following via GET)", url, next_url);
+                return self.navigate(&next_url, &jar).await;
+            }
+            warn!("Status {} with no Location header submitting form to {}", status, url);
+        }
+
+        let html = response.text().await?;
+        info!("Form submitted: {} (status: {}, bytes: {})", url, status, html.len());
+
+        Ok(PageContent {
+            url: url.to_string(),
+            status_code: status,
+            html,
+            headers,
+            redirect_chain: vec![url.to_string()],
+        })
+    }
+
     pub fn get_user_agent(&self) -> &str {
         &self.user_agent
     }
@@ -314,6 +383,63 @@ mod tests {
         let nav = Navigator::new().unwrap();
         let result = nav.follow_redirect("/path", "https://example.com/old").unwrap();
         assert!(result.contains("https://example.com/path"));
+    }
+
+    #[tokio::test]
+    async fn test_submit_form_posts_fields_and_returns_response() {
+        let mut server = mockito::Server::new_async().await;
+        let mock = server
+            .mock("POST", "/login")
+            .match_body(mockito::Matcher::AllOf(vec![
+                mockito::Matcher::UrlEncoded("username".into(), "alice".into()),
+                mockito::Matcher::UrlEncoded("password".into(), "hunter2".into()),
+            ]))
+            .with_status(200)
+            .with_body("<html><body>Welcome alice</body></html>")
+            .create_async()
+            .await;
+
+        let nav = Navigator::new().unwrap();
+        let jar = CookieJar::new();
+        let mut fields = HashMap::new();
+        fields.insert("username".to_string(), "alice".to_string());
+        fields.insert("password".to_string(), "hunter2".to_string());
+
+        let url = format!("{}/login", server.url());
+        let page = nav.submit_form(&url, &fields, &jar).await.unwrap();
+
+        mock.assert_async().await;
+        assert_eq!(page.status_code, 200);
+        assert!(page.html.contains("Welcome alice"));
+    }
+
+    #[tokio::test]
+    async fn test_submit_form_follows_post_redirect_via_get() {
+        let mut server = mockito::Server::new_async().await;
+        let target = format!("{}/dashboard", server.url());
+
+        let post_mock = server
+            .mock("POST", "/login")
+            .with_status(303)
+            .with_header("location", &target)
+            .create_async()
+            .await;
+        let get_mock = server
+            .mock("GET", "/dashboard")
+            .with_status(200)
+            .with_body("<html><body>Dashboard</body></html>")
+            .create_async()
+            .await;
+
+        let nav = Navigator::new().unwrap();
+        let jar = CookieJar::new();
+        let url = format!("{}/login", server.url());
+        let page = nav.submit_form(&url, &HashMap::new(), &jar).await.unwrap();
+
+        post_mock.assert_async().await;
+        get_mock.assert_async().await;
+        assert_eq!(page.url, target);
+        assert!(page.html.contains("Dashboard"));
     }
 
     /// Live network smoke test — not run by default (`cargo test` skips

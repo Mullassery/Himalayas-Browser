@@ -1,4 +1,6 @@
+use himalayas::browser::Browser;
 use himalayas::health::HealthMonitor;
+use himalayas::intelligence::device_detection::DeviceTier;
 use himalayas::metrics::MetricsCollector;
 use himalayas::server::HealthServer;
 use hyper::{Client, StatusCode};
@@ -9,7 +11,8 @@ use tokio::time::Duration;
 async fn test_health_server_startup() {
     let health_monitor = Arc::new(HealthMonitor::new());
     let metrics_collector = Arc::new(MetricsCollector::new());
-    let server = HealthServer::new(health_monitor.clone(), metrics_collector.clone());
+    let browser = Arc::new(Browser::new().unwrap());
+    let server = HealthServer::new(health_monitor.clone(), metrics_collector.clone(), true, DeviceTier::Standard, browser);
 
     let addr = "127.0.0.1:8081".parse().unwrap();
 
