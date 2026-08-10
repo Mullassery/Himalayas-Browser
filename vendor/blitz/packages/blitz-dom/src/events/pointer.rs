@@ -1,0 +1,926 @@
+use blitz_traits::node_id::NodeId;
+use std::collections::VecDeque;
+
+use web_time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+
+use blitz_traits::{
+    events::{
+        BlitzInputEvent, BlitzPointerEvent, BlitzPointerId, BlitzWheelDelta, BlitzWheelEvent,
+        DomEvent, DomEventData, MouseEventButton, MouseEventButtons,
+    },
+    navigation::NavigationOptions,
+};
+use keyboard_types::Modifiers;
+use markup5ever::local_name;
+use style::values::computed::UserSelect;
+use taffy::AbsoluteAxis;
+
+use crate::{
+    BaseDocument,
+    node::{ScrollbarRef, SpecialElementData},
+};
+
+use super::focus::generate_focus_events;
+
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct FlingState {
+    /// `None` means viewport-level scroll (no specific scrollable element —
+    /// matches `BaseDocument::scroll_by`'s own `anchor_node_id: Option<NodeId>`).
+    /// Widened from a bare `NodeId` (Himalayas patch) so wheel-driven
+    /// momentum — which can start from a wheel event with no specific
+    /// hovered node — can produce a `Fling` too, not just touch-drag panning
+    /// (which always has a concrete target). See `WheelMomentumState`.
+    pub(crate) target: Option<NodeId>,
+    pub(crate) last_seen_time: f64,
+    pub(crate) x_velocity: f64,
+    pub(crate) y_velocity: f64,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) enum ScrollAnimationState {
+    None,
+    Fling(FlingState),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct PanState {
+    pub(crate) target: NodeId,
+    pub(crate) last_x: f32,
+    pub(crate) last_y: f32,
+    pub(crate) samples: VecDeque<PanSample>,
+}
+
+/// Himalayas patch: momentum/inertial scrolling for wheel input (trackpad
+/// two-finger scroll, mouse wheel), not just touch-drag panning — the
+/// existing `PanState`/`FlingState` system upstream only ever triggered
+/// from `handle_pointerup` ending a `DragMode::Panning` drag, so wheel
+/// scrolling had zero momentum: input mapped 1:1 to scroll offset with
+/// nothing continuing once the wheel events stopped. Live user report:
+/// "scroll experience is not good, has to be more fluid."
+///
+/// Same rolling-sample-window idea as `PanState`, but wheel has no
+/// press/release to hook a "gesture ended" moment onto — `resolve_wheel_momentum`
+/// (in `document.rs`, called every frame like `resolve_scroll_animation`)
+/// detects "ended" itself, as a grace period with no new wheel event.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct WheelMomentumState {
+    pub(crate) target: Option<NodeId>,
+    pub(crate) samples: VecDeque<PanSample>,
+}
+
+/// How long without a new wheel event before we treat the gesture as over
+/// and hand off to `Fling`. Real trackpads fire wheel events every ~8-16ms
+/// while actively scrolling, so an 80ms silence is a clear, deliberate stop
+/// — not a dropped frame.
+pub(crate) const WHEEL_MOMENTUM_GRACE_MS: u64 = 80;
+
+impl WheelMomentumState {
+    /// Velocity from whatever samples are in the (already-trimmed-to-100ms)
+    /// window, in px/ms — unlike `PanState::generate_fling`, this doesn't
+    /// gate on sample recency itself, since the caller (`resolve_wheel_momentum`)
+    /// only calls this once it's already confirmed the gesture went quiet.
+    pub(crate) fn velocity(&self) -> Option<(f64, f64)> {
+        let first = self.samples.front()?;
+        let last = self.samples.back()?;
+        let span = (last.time - first.time) as f32;
+        if span <= 0.0 {
+            return None;
+        }
+        let (sum_x, sum_y) = self
+            .samples
+            .iter()
+            .fold((0.0, 0.0), |(x, y), s| (x + s.dx, y + s.dy));
+        Some(((sum_x / span) as f64, (sum_y / span) as f64))
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct PanSample {
+    pub(crate) time: u64,
+    pub(crate) dx: f32,
+    pub(crate) dy: f32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct ScrollbarDragState {
+    /// The thumb being dragged
+    pub(crate) scrollbar: ScrollbarRef,
+    /// Last pointer position along the drag axis, in page coordinates
+    pub(crate) last_pos: f32,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) enum DragMode {
+    /// We are not currently dragging
+    None,
+    /// We are currently dragging a selection (probably mouse)
+    Selecting,
+    /// We are currently panning the document with a drag (probably touch)
+    Panning(PanState),
+    /// We are currently dragging a scrollbar thumb
+    ScrollbarDrag(ScrollbarDragState),
+}
+
+impl DragMode {
+    pub(crate) fn take(&mut self) -> DragMode {
+        std::mem::replace(self, DragMode::None)
+    }
+}
+
+impl PanState {
+    fn update(&mut self, time_ms: u64, screen_x: f32, screen_y: f32) -> (f64, f64) {
+        let dx = (screen_x - self.last_x) as f64;
+        let dy = (screen_y - self.last_y) as f64;
+        self.last_x = screen_x;
+        self.last_y = screen_y;
+
+        self.samples.push_back(PanSample {
+            time: time_ms,
+            // TODO: account for scroll delta not applied due to clamping
+            dx: dx as f32,
+            dy: dy as f32,
+        });
+
+        // Remove samples older than 100ms
+        if self.samples.len() > 50 && time_ms - self.samples.front().unwrap().time > 100 {
+            let idx = self
+                .samples
+                .partition_point(|sample| time_ms - sample.time > 100);
+            // FIXME: use truncate_front once stable
+            for _ in 0..idx {
+                self.samples.pop_front();
+            }
+        }
+
+        (dx, dy)
+    }
+
+    fn generate_fling(&self, time_ms: u64) -> Option<FlingState> {
+        // Generate "fling"
+        if let Some(last_sample) = self.samples.back()
+            && time_ms - last_sample.time < 100
+        {
+            let idx = self
+                .samples
+                .partition_point(|sample| time_ms - sample.time > 100);
+
+            // Compute pan_time. Will always be <= 100ms as we ignore samples older than that.
+            let pan_start_time = self.samples[idx].time;
+            let pan_time = (time_ms - pan_start_time) as f32;
+
+            // Avoid division by 0
+            if pan_time > 0.0 {
+                let (pan_x, pan_y) = self
+                    .samples
+                    .iter()
+                    .skip(idx)
+                    .fold((0.0, 0.0), |(dx, dy), sample| {
+                        (dx + sample.dx, dy + sample.dy)
+                    });
+
+                let x_velocity = if pan_x.abs() > pan_y.abs() {
+                    pan_x / pan_time
+                } else {
+                    0.0
+                };
+
+                let y_velocity = if pan_y.abs() > pan_x.abs() {
+                    pan_y / pan_time
+                } else {
+                    0.0
+                };
+
+                return Some(FlingState {
+                    target: Some(self.target),
+                    last_seen_time: time_ms as f64,
+                    x_velocity: x_velocity as f64 * 2.0,
+                    y_velocity: y_velocity as f64 * 2.0,
+                });
+            }
+        }
+
+        None
+    }
+}
+
+pub(crate) fn handle_pointermove<F: FnMut(DomEvent)>(
+    doc: &mut BaseDocument,
+    target: NodeId,
+    event: &BlitzPointerEvent,
+    mut dispatch_event: F,
+) -> bool {
+    let x = event.page_x();
+    let y = event.page_y();
+    let buttons = event.buttons;
+
+    let mut changed = doc.set_hover_to(x, y);
+
+    // Check if we've moved enough to be considered a selection drag (2px threshold)
+    if buttons != MouseEventButtons::None && doc.drag_mode == DragMode::None {
+        let dx = x - doc.mousedown_position.x;
+        let dy = y - doc.mousedown_position.y;
+        if dx.abs() > 2.0 || dy.abs() > 2.0 {
+            match event.id {
+                BlitzPointerId::Mouse | BlitzPointerId::Pen => {
+                    if let Some(mousedown_node_id) = doc.mousedown_node_id {
+                        let node = &doc.nodes[mousedown_node_id];
+                        if let Some(style) = node.primary_styles() {
+                            let user_select = style.clone_user_select();
+                            if user_select == UserSelect::None {
+                                // Do nothing. Continue with rest of function
+                            } else if user_select == UserSelect::Auto {
+                                if let Some(parent) = node.parent {
+                                    let node = &doc.nodes[parent];
+                                    if let Some(style) = node.primary_styles() {
+                                        let user_select = style.clone_user_select();
+                                        if user_select == UserSelect::None {
+                                            // Do nothing. Continue with rest of function
+                                        } else {
+                                            doc.drag_mode = DragMode::Selecting;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                BlitzPointerId::Finger(_) => {
+                    doc.drag_mode = DragMode::Panning(PanState {
+                        target,
+                        last_x: event.screen_x(),
+                        last_y: event.screen_y(),
+                        samples: VecDeque::with_capacity(200),
+                    });
+                }
+            }
+        }
+    }
+
+    if let DragMode::Panning(state) = &mut doc.drag_mode {
+        let time_ms = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as u64;
+
+        let target = state.target;
+        let (dx, dy) = state.update(time_ms, event.screen_x(), event.screen_y());
+
+        let has_changed = doc.scroll_by(Some(target), dx, dy, &mut dispatch_event);
+        return has_changed;
+    }
+
+    if let DragMode::ScrollbarDrag(state) = &doc.drag_mode {
+        let scrollbar = state.scrollbar;
+        let ScrollbarRef { node_id, axis } = scrollbar;
+        let pos = match axis {
+            AbsoluteAxis::Horizontal => x,
+            AbsoluteAxis::Vertical => y,
+        };
+        let delta_px = (pos - state.last_pos) as f64;
+
+        // Himalayas patch: the viewport-level overlay scrollbar (see
+        // `hit_viewport_scrollbar`/`is_viewport_scrollbar`) is keyed by the
+        // root element's id as a stand-in, but dragging it has to move
+        // `viewport_scroll` (via `scroll_by(None, ...)`), not the root
+        // node's own (usually nonexistent) overflow — a real per-node
+        // scroll container drag, which is what this branch originally
+        // always assumed, unconditionally.
+        let is_viewport = doc.is_viewport_scrollbar(scrollbar);
+
+        // Thumb px -> content px. scroll_by uses wheel-delta semantics
+        // (positive delta decreases the offset), so negate.
+        let ratio = if is_viewport {
+            doc.viewport_scrollbar_drag_ratio(axis)
+        } else {
+            doc.nodes[node_id].scrollbar_drag_ratio(axis)
+        };
+        let (dx, dy) = match axis {
+            AbsoluteAxis::Horizontal => (-delta_px * ratio, 0.0),
+            AbsoluteAxis::Vertical => (0.0, -delta_px * ratio),
+        };
+
+        if let DragMode::ScrollbarDrag(state) = &mut doc.drag_mode {
+            state.last_pos = pos;
+        }
+
+        let scroll_target = if is_viewport { None } else { Some(node_id) };
+        let has_changed = doc.scroll_by(scroll_target, dx, dy, &mut dispatch_event);
+        return has_changed;
+    }
+
+    let Some(hit) = doc.hit(x, y) else {
+        return changed;
+    };
+
+    if changed {
+        dispatch_event(DomEvent::new(
+            hit.node_id,
+            DomEventData::MouseEnter(event.clone()),
+        ));
+    }
+
+    // `target` is the event's canonicalized target (never a layout-generated
+    // node), while the hit may be an anonymous block (e.g. bare text wrapped
+    // in an anonymous box). Compare against the hit's canonical DOM ancestor
+    // so selection drags keep working over anonymous blocks.
+    if doc.nearest_non_anonymous_ancestor(hit.node_id) != Some(target) {
+        return changed;
+    }
+
+    let node = &mut doc.nodes[target];
+    let Some(el) = node.data.downcast_element_mut() else {
+        // Handle text selection extension for non-element nodes
+        if buttons != MouseEventButtons::None
+            && doc.drag_mode == DragMode::Selecting
+            && doc.extend_text_selection_to_point(x, y)
+        {
+            changed = true;
+        }
+        return changed;
+    };
+
+    let disabled = el.attr(local_name!("disabled")).is_some();
+    if disabled {
+        return changed;
+    }
+
+    if let SpecialElementData::TextInput(ref mut text_input_data) = el.special_data {
+        if buttons == MouseEventButtons::None {
+            return changed;
+        }
+
+        let mut content_box_offset = taffy::Point {
+            x: el.final_layout.padding.left + el.final_layout.border.left,
+            y: el.final_layout.padding.top + el.final_layout.border.top,
+        };
+        if !text_input_data.is_multiline {
+            let layout = text_input_data.editor.try_layout().unwrap();
+            let content_box_height = el.final_layout.content_box_height();
+            let input_height = layout.height() / layout.scale();
+            let y_offset = ((content_box_height - input_height) / 2.0).max(0.0);
+
+            content_box_offset.y += y_offset;
+        }
+
+        // Account for the input's scroll offset (stored in CSS pixels, scaled here to device
+        // pixels) when mapping the pointer location into the text content's coordinate space.
+        let scroll_offset = text_input_data.scroll_offset as f64 * doc.viewport.scale_f64();
+        let (scroll_x, scroll_y) = if text_input_data.is_multiline {
+            (0.0, scroll_offset)
+        } else {
+            (scroll_offset, 0.0)
+        };
+
+        let x = (hit.x - content_box_offset.x) as f64 * doc.viewport.scale_f64() + scroll_x;
+        let y = (hit.y - content_box_offset.y) as f64 * doc.viewport.scale_f64() + scroll_y;
+
+        text_input_data
+            .editor
+            .driver(&mut doc.font_ctx.lock().unwrap(), &mut doc.layout_ctx)
+            .extend_selection_to_point(x as f32, y as f32);
+
+        changed = true;
+    } else if event.is_mouse()
+        && buttons != MouseEventButtons::None
+        && doc.drag_mode == DragMode::Selecting
+        && doc.extend_text_selection_to_point(x, y)
+    {
+        changed = true;
+    }
+
+    changed
+}
+
+pub(crate) fn handle_pointerdown(
+    doc: &mut BaseDocument,
+    _target: NodeId,
+    x: f32,
+    y: f32,
+    button: MouseEventButton,
+    mods: Modifiers,
+    dispatch_event: &mut dyn FnMut(DomEvent),
+) {
+    // Compute click count using the previous mousedown position (before updating)
+    // This handles both double-click detection and text input word/line selection
+    // TODO: For text inputs, only increment click count if click maps to the same/similar caret position
+    doc.click_count = if doc
+        .last_mousedown_time
+        .map(|t| t.elapsed() < Duration::from_millis(500))
+        .unwrap_or(false)
+        && (doc.mousedown_position.x - x).abs() <= 2.0
+        && (doc.mousedown_position.y - y).abs() <= 2.0
+    {
+        doc.click_count + 1
+    } else {
+        1
+    };
+
+    // Update mousedown tracking for next click and selection drag detection
+    doc.last_mousedown_time = Some(Instant::now());
+    doc.mousedown_position = taffy::Point { x, y };
+    doc.drag_mode = DragMode::None;
+    doc.scroll_animation = ScrollAnimationState::None;
+
+    let Some(hit) = doc.hit(x, y) else {
+        // Clear text selection when clicking outside any element
+        doc.clear_text_selection();
+        return;
+    };
+
+    // Scrollbar thumb drags take precedence over content interactions and
+    // are not dispatched to the page (matching native scrollbars). A
+    // faded-out thumb doesn't capture: the click goes to the content.
+    if button == MouseEventButton::Main {
+        if let (_, Some(scrollbar)) = doc.hit_with_scrollbar(x, y)
+            && doc.scrollbar_opacity(scrollbar.node_id) > 0.0
+        {
+            doc.drag_mode = DragMode::ScrollbarDrag(ScrollbarDragState {
+                scrollbar,
+                last_pos: match scrollbar.axis {
+                    AbsoluteAxis::Horizontal => x,
+                    AbsoluteAxis::Vertical => y,
+                },
+            });
+            doc.shell_provider.request_redraw();
+            return;
+        }
+    }
+
+    // Use hit.node_id for determining the actual clicked element.
+    // This may differ from `target` for anonymous blocks (which are layout children
+    // but not DOM children), so we use the hit result for text selection.
+    let actual_target = hit.node_id;
+
+    // Check what kind of element we're dealing with and extract needed info
+    enum ClickTarget {
+        TextInput {
+            content_box_offset: taffy::Point<f32>,
+            /// Scroll offset of the input along each axis, in scaled (device) pixels.
+            scroll: taffy::Point<f64>,
+        },
+        Disabled,
+        SelectableText,
+    }
+
+    let click_target = {
+        let node = &doc.nodes[actual_target];
+        match node.data.downcast_element() {
+            Some(el) if el.has_attr(local_name!("disabled")) => ClickTarget::Disabled,
+            Some(el) => {
+                if let SpecialElementData::TextInput(ref text_input_data) = el.special_data {
+                    let mut content_box_offset = taffy::Point {
+                        x: node.final_layout().padding.left + node.final_layout().border.left,
+                        y: node.final_layout().padding.top + node.final_layout().border.top,
+                    };
+                    if !text_input_data.is_multiline {
+                        let layout = text_input_data.editor.try_layout().unwrap();
+                        let content_box_height = node.final_layout().content_box_height();
+                        let input_height = layout.height() / layout.scale();
+                        let y_offset = ((content_box_height - input_height) / 2.0).max(0.0);
+                        content_box_offset.y += y_offset;
+                    }
+                    // `scroll_offset` is stored in CSS pixels; scale it to device pixels to
+                    // match the editor's coordinate space.
+                    let scroll_offset =
+                        text_input_data.scroll_offset as f64 * doc.viewport.scale_f64();
+                    let scroll = if text_input_data.is_multiline {
+                        taffy::Point {
+                            x: 0.0,
+                            y: scroll_offset,
+                        }
+                    } else {
+                        taffy::Point {
+                            x: scroll_offset,
+                            y: 0.0,
+                        }
+                    };
+                    ClickTarget::TextInput {
+                        content_box_offset,
+                        scroll,
+                    }
+                } else {
+                    ClickTarget::SelectableText
+                }
+            }
+            None => ClickTarget::SelectableText,
+        }
+    };
+
+    match click_target {
+        ClickTarget::Disabled => (),
+        ClickTarget::SelectableText => {
+            // Handle text selection for non-input elements
+            if let Some((inline_root_id, byte_offset)) = doc.find_text_position(x, y) {
+                doc.set_text_selection(inline_root_id, byte_offset, inline_root_id, byte_offset);
+                doc.shell_provider.request_redraw();
+            } else {
+                doc.clear_text_selection();
+            }
+        }
+        ClickTarget::TextInput {
+            content_box_offset,
+            scroll,
+        } => {
+            // Clear general text selection when focusing a text input
+            doc.clear_text_selection();
+
+            let tx = (hit.x - content_box_offset.x) as f64 * doc.viewport.scale_f64() + scroll.x;
+            let ty = (hit.y - content_box_offset.y) as f64 * doc.viewport.scale_f64() + scroll.y;
+
+            // Now get mutable access to the text input
+            let click_count = doc.click_count;
+            let node = &mut doc.nodes[actual_target];
+            let el = node.data.downcast_element_mut().unwrap();
+            if let SpecialElementData::TextInput(ref mut text_input_data) = el.special_data {
+                let mut font_ctx = doc.font_ctx.lock().unwrap();
+                let mut driver = text_input_data
+                    .editor
+                    .driver(&mut font_ctx, &mut doc.layout_ctx);
+
+                match click_count {
+                    1 => {
+                        if mods.shift() {
+                            driver.shift_click_extension(tx as f32, ty as f32);
+                        } else {
+                            driver.move_to_point(tx as f32, ty as f32);
+                        }
+                    }
+                    2 => driver.select_word_at_point(tx as f32, ty as f32),
+                    _ => driver.select_hard_line_at_point(tx as f32, ty as f32),
+                }
+
+                drop(font_ctx);
+            }
+
+            generate_focus_events(
+                doc,
+                &mut |doc| {
+                    doc.set_focus_to(hit.node_id);
+                },
+                dispatch_event,
+            );
+        }
+    }
+}
+
+pub(crate) fn handle_pointerup<F: FnMut(DomEvent)>(
+    doc: &mut BaseDocument,
+    target: NodeId,
+    event: &BlitzPointerEvent,
+    mut dispatch_event: F,
+) {
+    if doc.devtools().highlight_hover {
+        let mut node = doc.get_node(target).unwrap();
+        if event.button == MouseEventButton::Secondary {
+            if let Some(parent_id) = node.layout_parent.get() {
+                node = doc.get_node(parent_id).unwrap();
+            }
+        }
+        doc.debug_log_node(node.id);
+        doc.devtools_mut().highlight_hover = false;
+        return;
+    }
+
+    // Reset Document's drag state to DragMode::None, storing the state
+    // locally for use within this function
+    let drag_mode = doc.drag_mode.take();
+
+    // Don't dispatch click if we were doing a text selection drag or panning
+    // the document with a touch
+    let do_click = drag_mode == DragMode::None;
+
+    // Repaint so a dragged scrollbar thumb drops its active styling, and
+    // restart its fade-out delay now that the drag no longer holds it shown
+    if let DragMode::ScrollbarDrag(state) = &drag_mode {
+        doc.show_scrollbars(state.scrollbar.node_id);
+        doc.shell_provider.request_redraw();
+    }
+
+    let time_ms = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_millis() as u64;
+
+    if let DragMode::Panning(state) = &drag_mode {
+        if let Some(fling) = state.generate_fling(time_ms) {
+            doc.scroll_animation = ScrollAnimationState::Fling(fling);
+            doc.shell_provider.request_redraw();
+        }
+    }
+
+    // Dispatch a click event
+    if do_click && event.button == MouseEventButton::Main {
+        dispatch_event(DomEvent::new(target, DomEventData::Click(event.clone())));
+    }
+
+    // Dispatch a context menu event
+    if do_click && event.button == MouseEventButton::Secondary {
+        dispatch_event(DomEvent::new(
+            target,
+            DomEventData::ContextMenu(event.clone()),
+        ));
+    }
+}
+
+pub(crate) fn handle_click(
+    doc: &mut BaseDocument,
+    target: NodeId,
+    event: &BlitzPointerEvent,
+    dispatch_event: &mut dyn FnMut(DomEvent),
+) {
+    let double_click_event = event.clone();
+
+    let mut maybe_node_id = Some(target);
+    let matched = 'matched: {
+        while let Some(node_id) = maybe_node_id {
+            let maybe_element = {
+                let node = &mut doc.nodes[node_id];
+                node.data.downcast_element_mut()
+            };
+
+            let Some(el) = maybe_element else {
+                maybe_node_id = doc.nodes[node_id].parent;
+                continue;
+            };
+
+            let disabled = el.attr(local_name!("disabled")).is_some();
+            if disabled {
+                break 'matched true;
+            }
+
+            if let SpecialElementData::TextInput(_) = el.special_data {
+                break 'matched true;
+            }
+
+            match el.name.local {
+                local_name!("input") if el.attr(local_name!("type")) == Some("checkbox") => {
+                    let is_checked = BaseDocument::toggle_checkbox(el);
+                    let value = is_checked.to_string();
+                    dispatch_event(DomEvent::new(
+                        node_id,
+                        DomEventData::Input(BlitzInputEvent { value }),
+                    ));
+                    generate_focus_events(
+                        doc,
+                        &mut |doc| {
+                            doc.set_focus_to(node_id);
+                        },
+                        dispatch_event,
+                    );
+                    break 'matched true;
+                }
+                local_name!("input") if el.attr(local_name!("type")) == Some("radio") => {
+                    if let Some(radio_set) = el.attr(local_name!("name")).map(str::to_string) {
+                        BaseDocument::toggle_radio(doc, radio_set, node_id);
+                    } else if let Some(is_checked) = el.checkbox_input_checked_mut() {
+                        *is_checked = true;
+                    }
+
+                    // TODO: make input event conditional on value actually changing
+                    let value = String::from("true");
+                    dispatch_event(DomEvent::new(
+                        node_id,
+                        DomEventData::Input(BlitzInputEvent { value }),
+                    ));
+
+                    generate_focus_events(
+                        doc,
+                        &mut |doc| {
+                            doc.set_focus_to(node_id);
+                        },
+                        dispatch_event,
+                    );
+
+                    break 'matched true;
+                }
+                // Activating the first <summary> of a <details> element toggles
+                // the details' `open` attribute (expand/collapse).
+                local_name!("summary") => {
+                    if let Some(parent_id) = doc.nodes[node_id].parent {
+                        let parent = &doc.nodes[parent_id];
+                        let is_first_summary = parent
+                            .data
+                            .is_element_with_tag_name(&local_name!("details"))
+                            && parent.children.iter().copied().find(|&child_id| {
+                                doc.nodes[child_id]
+                                    .data
+                                    .is_element_with_tag_name(&local_name!("summary"))
+                            }) == Some(node_id);
+
+                        if is_first_summary {
+                            doc.toggle_details_open(parent_id);
+                            generate_focus_events(
+                                doc,
+                                &mut |doc| {
+                                    doc.set_focus_to(node_id);
+                                },
+                                dispatch_event,
+                            );
+                            break 'matched true;
+                        }
+                    }
+                }
+                // Clicking labels triggers click, and possibly input event, of associated input
+                local_name!("label") => {
+                    if let Some(target_node_id) =
+                        doc.label_bound_input_element(node_id).map(|n| n.id)
+                    {
+                        // Apply default click event action for target node
+                        let target_node = doc.get_node_mut(target_node_id).unwrap();
+                        let syn_event = target_node.synthetic_click_event_data(event.mods);
+                        handle_click(doc, target_node_id, &syn_event, dispatch_event);
+                        break 'matched true;
+                    }
+                }
+                local_name!("a") => {
+                    if let Some(href) = el.attr(local_name!("href")).map(str::to_string) {
+                        if let Some(url) = doc.url.resolve_relative(&href) {
+                            // If the link only differs from the current document URL by its
+                            // fragment (this includes links whose href is just `#fragment`),
+                            // perform in-page fragment navigation (scrolling) instead of a
+                            // full navigation.
+                            if url.fragment().is_some() && doc.url.is_same_document(&url) {
+                                doc.scroll_to_fragment(url.fragment().unwrap_or_default());
+                            } else {
+                                doc.navigation_provider.navigate_to(NavigationOptions::new(
+                                    url,
+                                    None,
+                                    doc.id(),
+                                ));
+                            }
+                        } else {
+                            #[cfg(feature = "tracing")]
+                            tracing::warn!("{href} is not parseable as a url. : {:?}", *doc.url);
+                        }
+                        break 'matched true;
+                    } else {
+                        #[cfg(feature = "tracing")]
+                        tracing::info!("Clicked link without href: {:?}", el.attrs());
+                    }
+                }
+                local_name!("input") | local_name!("button")
+                    if el.is_submit_button() || el.attr(local_name!("type")) == Some("submit") =>
+                {
+                    if let Some(form_owner) = doc.controls_to_form.get(&node_id) {
+                        doc.submit_form(*form_owner, node_id);
+                    }
+                }
+                #[cfg(feature = "file-input")]
+                local_name!("input") if el.attr(local_name!("type")) == Some("file") => {
+                    use crate::qual_name;
+                    //TODO: Handle accept attribute https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Attributes/accept by passing an appropriate filter
+                    let multiple = el.attr(local_name!("multiple")).is_some();
+                    let files = doc.shell_provider.open_file_dialog(multiple, None);
+
+                    if let Some(file) = files.first() {
+                        el.attrs
+                            .set(qual_name!("value", html), &file.to_string_lossy());
+                    }
+                    let text_content = match files.len() {
+                        0 => "No Files Selected".to_string(),
+                        1 => files
+                            .first()
+                            .unwrap()
+                            .file_name()
+                            .unwrap_or_default()
+                            .to_string_lossy()
+                            .to_string(),
+                        x => format!("{x} Files Selected"),
+                    };
+
+                    if files.is_empty() {
+                        el.special_data = SpecialElementData::None;
+                    } else {
+                        el.special_data = SpecialElementData::FileInput(files.into())
+                    }
+                    let child_label_id = doc.nodes[node_id].children[1];
+                    let child_text_id = doc.nodes[child_label_id].children[0];
+                    let text_data = doc.nodes[child_text_id]
+                        .text_data_mut()
+                        .expect("Text data not found");
+                    text_data.content = text_content;
+                }
+                _ => {}
+            }
+
+            // No match. Recurse up to parent.
+            maybe_node_id = doc.nodes[node_id].parent;
+        }
+
+        // Didn't match anything
+        false
+    };
+
+    // If nothing is matched then clear focus
+    if !matched {
+        generate_focus_events(doc, &mut |doc| doc.clear_focus(), dispatch_event);
+    }
+
+    // Dispatch double-click event if this is the second click in quick succession
+    // (click_count was already computed in handle_mousedown)
+    if doc.click_count == 2 {
+        dispatch_event(DomEvent::new(
+            target,
+            DomEventData::DoubleClick(double_click_event),
+        ));
+    }
+}
+
+pub(crate) fn handle_wheel<F: FnMut(DomEvent)>(
+    doc: &mut BaseDocument,
+    _: NodeId,
+    event: BlitzWheelEvent,
+    mut dispatch_event: F,
+) {
+    let (scroll_x, scroll_y) = match event.delta {
+        BlitzWheelDelta::Lines(x, y) => (x * 20.0, y * 20.0),
+        BlitzWheelDelta::Pixels(x, y) => (x, y),
+    };
+
+    let target = doc.get_hover_node_id();
+
+    // Real wheel input arriving means the user is back in direct control —
+    // stop any momentum animation still coasting from a previous gesture
+    // rather than fighting it (this scroll_by and a still-running Fling
+    // would otherwise both be moving the same offset the same frame).
+    doc.scroll_animation = ScrollAnimationState::None;
+
+    let time_ms = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_millis() as u64;
+    let state = doc
+        .wheel_momentum
+        .get_or_insert_with(|| WheelMomentumState { target, samples: VecDeque::new() });
+    if state.target != target {
+        // Wheeling over a different scrollable element than the last
+        // sample — that's a new gesture, not a continuation.
+        state.target = target;
+        state.samples.clear();
+    }
+    state.samples.push_back(PanSample { time: time_ms, dx: scroll_x as f32, dy: scroll_y as f32 });
+    let idx = state.samples.partition_point(|s| time_ms - s.time > 100);
+    for _ in 0..idx {
+        state.samples.pop_front();
+    }
+
+    let has_changed = doc.scroll_by(
+        target,
+        scroll_x,
+        scroll_y,
+        &mut dispatch_event,
+    );
+    if has_changed {
+        doc.shell_provider.request_redraw();
+    }
+}
+
+#[cfg(test)]
+mod wheel_momentum_tests {
+    use super::*;
+
+    #[test]
+    fn velocity_is_none_with_fewer_than_two_samples() {
+        let empty = WheelMomentumState { target: None, samples: VecDeque::new() };
+        assert_eq!(empty.velocity(), None);
+
+        let mut one_sample = WheelMomentumState { target: None, samples: VecDeque::new() };
+        one_sample.samples.push_back(PanSample { time: 100, dx: 5.0, dy: 5.0 });
+        // A single sample has zero time span — no velocity to compute.
+        assert_eq!(one_sample.velocity(), None);
+    }
+
+    #[test]
+    fn velocity_averages_deltas_over_the_sample_window() {
+        let mut state = WheelMomentumState { target: None, samples: VecDeque::new() };
+        // Consistent 10px/10ms of downward scroll across 3 samples.
+        state.samples.push_back(PanSample { time: 0, dx: 0.0, dy: 10.0 });
+        state.samples.push_back(PanSample { time: 10, dx: 0.0, dy: 10.0 });
+        state.samples.push_back(PanSample { time: 20, dx: 0.0, dy: 10.0 });
+
+        let (vx, vy) = state.velocity().unwrap();
+        assert_eq!(vx, 0.0);
+        // Span is 20ms (last.time - first.time), total dy summed across all
+        // 3 samples is 30 -> 30/20 = 1.5 px/ms.
+        assert!((vy - 1.5).abs() < 1e-6, "expected ~1.5 px/ms, got {vy}");
+    }
+
+    #[test]
+    fn handle_wheel_resets_samples_when_target_changes() {
+        // Regression guard for the "different scrollable element" branch in
+        // `handle_wheel` — a WheelMomentumState from a previous gesture over
+        // a *different* node must not contribute samples to a fling on the
+        // new one.
+        let mut state = WheelMomentumState { target: Some(NodeId::from_u64(0)), samples: VecDeque::new() };
+        state.samples.push_back(PanSample { time: 0, dx: 0.0, dy: 50.0 });
+
+        let new_target = Some(NodeId::from_u64(1));
+        if state.target != new_target {
+            state.target = new_target;
+            state.samples.clear();
+        }
+
+        assert!(state.samples.is_empty());
+        assert_eq!(state.target, new_target);
+    }
+}
