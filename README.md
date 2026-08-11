@@ -8,23 +8,42 @@
 
 ## The Proof
 
-```
-                      Startup         Memory (Idle)    5 Tabs         Battery (4h Idle)
-                      -------         -----            ------         -----------------
-Himalayas:            ~30ms*          ~8MB*            95MB           94%
-Mainstream:           2.1s            120MB            600MB          52%
-Firefox:              2.4s            80MB             450MB          78%
-Safari:               1.2s            200MB            500MB          87%
+Two different things, kept separate rather than blended into one table: the **headless daemon** (`himalayas daemon` — no window, no rendering, the thing automation/agents actually talk to) and the **native GUI shell** (`himalayas-desktop` — real tabs, real page rendering). Mixing their numbers together would be misleading, since they're not doing the same work.
 
-ADVANTAGE:            ~70x faster*    ~15x lighter*     6x leaner      8x longer
+### Headless daemon (measured)
+
 ```
-\* Daemon startup (`himalayas daemon`, time to first `/health` 200 response) and idle RSS, measured directly against a local release build (`cargo build --release`, `strip = true`) on Apple Silicon — see PERFORMANCE.md for methodology. "5 Tabs"/"Battery" figures below are from the original benchmark pass and haven't been re-measured this round.
+                      Startup         Memory (Idle)
+                      -------         -----
+Himalayas:            ~30ms*          ~8MB*
+Mainstream:            2.1s           120MB
+Firefox:               2.4s            80MB
+Safari:                1.2s           200MB
+
+ADVANTAGE:            ~70x faster*    ~15x lighter*
+```
+\* Time to first `/health` 200 response and idle RSS, measured directly against a local release build (`cargo build --release`, `strip = true`) on Apple Silicon — see PERFORMANCE.md for methodology. Mainstream/Firefox/Safari figures are their own full application startup (window + rendering), not a directly equivalent comparison — included for orientation, not an apples-to-apples claim.
 
 **Real-world impact:**
 - Daemon ready in ~30ms (headless automation immediately)
 - ~8MB idle (run 50+ concurrent agents on 1GB RAM)
-- 94% battery after 4 hours (one charge = 3 days of browsing)
 - Runs on 256MB IoT devices (only browser that does)
+
+### Native GUI shell (`himalayas-desktop`, not yet independently re-measured)
+
+```
+                      5 Tabs         Battery (4h Idle)
+                      ------         -----------------
+Himalayas:            95MB           94%
+Mainstream:           600MB          52%
+Firefox:              450MB          78%
+Safari:               500MB          87%
+
+ADVANTAGE:            6x leaner      8x longer
+```
+From the original benchmark pass (see PERFORMANCE.md) — not re-measured against the current native shell build the way the headless daemon numbers above were. Treat as the earlier estimate it is until re-verified.
+
+- 94% battery after 4 hours (one charge = 3 days of browsing) — original benchmark, not re-verified
 
 ---
 
@@ -153,10 +172,19 @@ curl http://127.0.0.1:8080/health
 
 ### Performance
 
+Headless daemon (measured, see PERFORMANCE.md for methodology) and native GUI shell (original benchmark pass, not re-measured) are kept in separate tables — they're not doing the same work, so a single blended table would overstate how much of this is freshly verified.
+
+**Headless daemon (`himalayas daemon`) — measured**
+
 | Metric | Himalayas | Mainstream | Firefox | Safari |
 |--------|-----------|--------|---------|--------|
 | **Startup** | ~30ms (measured) | 2.1s | 2.4s | 1.2s |
 | **Memory (idle)** | ~8MB (measured) | 120MB | 80MB | 200MB |
+
+**Native GUI shell (`himalayas-desktop`) — original benchmark pass, not re-verified**
+
+| Metric | Himalayas | Mainstream | Firefox | Safari |
+|--------|-----------|--------|---------|--------|
 | **5 Concurrent Tabs** | 95MB | 600MB | 450MB | 500MB |
 | **50 Concurrent Agents** | 580MB | 6GB | Not supported | Not supported |
 | **Battery (4h idle)** | 94% remaining | 52% remaining | 78% remaining | 87% remaining |
