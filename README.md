@@ -2,7 +2,7 @@
 
 **The browser that makes mainstream browsers look slow. Built for agents, loved by speed fanatics.**
 
-[![GitHub Stars](https://img.shields.io/github/stars/Mullassery/Himalayas-Browser?style=social)](https://github.com/Mullassery/Himalayas-Browser) [![CI](https://github.com/Mullassery/Himalayas-Browser/actions/workflows/ci.yml/badge.svg)](https://github.com/Mullassery/Himalayas-Browser/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-Proprietary-blue?style=flat-square)](LICENSE) [![Version](https://img.shields.io/badge/version-0.5.1-blue?style=flat-square)](.)
+[![GitHub Stars](https://img.shields.io/github/stars/Mullassery/Himalayas-Browser?style=social)](https://github.com/Mullassery/Himalayas-Browser) [![CI](https://github.com/Mullassery/Himalayas-Browser/actions/workflows/ci.yml/badge.svg)](https://github.com/Mullassery/Himalayas-Browser/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-Proprietary-blue?style=flat-square)](LICENSE) [![Version](https://img.shields.io/badge/version-0.5.2-blue?style=flat-square)](.)
 
 ---
 
@@ -121,7 +121,7 @@ A real, GPU-rendered browser window — not just the headless daemon — built o
 What's real and working, not aspirational:
 - Tabs (drag to reorder, pin/unpin with compact favicon-style pinned tabs that survive a restart), address bar with real navigation/history, keyboard shortcuts
 - Bookmarks: a star button plus a full Bookmark Manager (folders, search, sort, drag-to-move, multi-select, HTML/JSON import & export)
-- A real disk HTTP cache (Cache-Control/ETag/Last-Modified-aware) covering both page navigation and subresources
+- A real disk HTTP cache (Cache-Control/ETag/Last-Modified-aware) covering both page navigation and subresources, automatically size-capped (250MB default, evicting oldest entries first, in the background so it never adds to daemon startup time) rather than growing unbounded
 - Real image support: JPEG/PNG/WebP/AVIF/GIF/BMP, `srcset`/`sizes` responsive images, `<picture>`/`<source>` art direction, `loading="lazy"`, animated GIF playback — with real decoder resource limits against oversized/malicious images
 - Real `<audio>` playback (MP3/AAC/WAV/Vorbis/FLAC, via `rodio`/`symphonia`) — `<video>` isn't built yet, a deliberate call pending a real decode-architecture decision (see `docs/NATIVE_RENDERING_PLAN.md`)
 - Accessibility-motivated shell scaling (bigger address bar/tabs, independent of page-content zoom) and a page-zoom setting
@@ -375,8 +375,8 @@ Key findings (see "The Proof" above for what's independently measured this round
 | Phase 2.5 | Complete | Adaptive intelligence engine (143 tests) |
 | Phase 3+ | In Progress | Multi-form factors, fleet management |
 
-Latest Version: 0.5.1 (matches `Cargo.toml`)  
-Tests Passing: 525 across the full workspace (`cargo test --features full`, the native-shell binary's own suite, and the vendored rendering engine's — 5 additional tests are `#[ignore]`d live-network/manual checks, not counted here)  
+Latest Version: 0.5.2 (matches `Cargo.toml`)  
+Tests Passing: 524 across the full workspace (`cargo test --features full`, the native-shell binary's own suite, and the vendored rendering engine's — 2 additional tests are `#[ignore]`d live-network checks, not counted here)  
 Code: Rust (core) + Python (bindings)
 
 ---

@@ -1,6 +1,6 @@
 [package]
 name = "himalayas"
-version = "0.5.1"
+version = "0.5.2"
 edition = "2021"
 authors = ["Georgi Mammen Mullassery <mullassery@gmail.com>"]
 description = "The world's first truly agent-native browser platform"
@@ -78,6 +78,12 @@ rfd = { version = "0.17", default-features = false, features = ["xdg-portal"] }
 reqwest-middleware = { version = "0.5.1", default-features = false, features = ["form"] }
 http-cache-reqwest = { version = "=1.0.0-alpha.6", default-features = false, features = ["manager-cacache"] }
 http-cache = { version = "=1.0.0-alpha.6", default-features = false, features = ["url-standard"] }
+# Same version http-cache's `manager-cacache` feature already resolves to
+# (Cargo unifies features across the graph, so this doesn't pull in a second
+# copy) — used directly by src/net_cache.rs for cache-eviction bookkeeping
+# (listing entries, removing the least-recently-written ones) that
+# http-cache-reqwest's `CacheManager` trait has no hook for.
+cacache = { version = "13.1.0", default-features = false }
 
 # js_engine (native rendering spike, see docs/NATIVE_RENDERING_PLAN.md): a
 # native window (dioxus-native/Himalayas DOM chrome) with a scripted content
