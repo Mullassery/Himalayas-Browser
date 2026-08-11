@@ -2772,7 +2772,7 @@ checksum = "dfa686283ad6dd069f105e5ab091b04c62850d3e4cf5d67debad1933f55023df"
 
 [[package]]
 name = "himalayas"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "base64 0.21.7",
@@ -2790,6 +2790,8 @@ dependencies = [
  "dioxus-native",
  "directories",
  "fxhash",
+ "http-cache",
+ "http-cache-reqwest",
  "hyper 0.14.32",
  "image 0.24.9",
  "linebender_resource_handle",
@@ -2803,6 +2805,7 @@ dependencies = [
  "pdf",
  "regex",
  "reqwest 0.12.28",
+ "reqwest-middleware",
  "rfd",
  "scraper",
  "serde",

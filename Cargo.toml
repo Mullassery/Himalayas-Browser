@@ -1,6 +1,6 @@
 [package]
 name = "himalayas"
-version = "0.3.0"
+version = "0.4.0"
 edition = "2021"
 authors = ["Georgi Mammen Mullassery <mullassery@gmail.com>"]
 description = "The world's first truly agent-native browser platform"
@@ -66,6 +66,18 @@ directories = "6.0.0"
 # from inside blitz-shell's `WindowState`), a file dialog has no engine
 # state to reach — it's a self-contained OS call desktop.rs can make itself.
 rfd = { version = "0.17", default-features = false, features = ["xdg-portal"] }
+# Real HTTP disk cache (Cache-Control/ETag/Last-Modified-aware) for
+# Navigator's /app fetch path and the native shell's top-level document
+# fetch (src/net_cache.rs) — same crates/versions/features blitz-net
+# already pins in its own, separate Cargo workspace for exactly this
+# (vendor/blitz/packages/blitz-net/src/lib.rs), reused here rather than
+# hand-rolling a second cache implementation. Pulls in the same reqwest
+# 0.13 that blitz-net's own `cache` feature already resolves to in
+# Cargo.lock when js_engine is enabled — not a new duplicate dependency
+# tree, just reusing what's already there.
+reqwest-middleware = { version = "0.5.1", default-features = false, features = ["form"] }
+http-cache-reqwest = { version = "=1.0.0-alpha.6", default-features = false, features = ["manager-cacache"] }
+http-cache = { version = "=1.0.0-alpha.6", default-features = false, features = ["url-standard"] }
 
 # js_engine (native rendering spike, see docs/NATIVE_RENDERING_PLAN.md): a
 # native window (dioxus-native/Himalayas DOM chrome) with a scripted content

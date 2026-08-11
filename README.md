@@ -2,7 +2,7 @@
 
 **The browser that makes mainstream browsers look slow. Built for agents, loved by speed fanatics.**
 
-[![GitHub Stars](https://img.shields.io/github/stars/Mullassery/Himalayas-Browser?style=social)](https://github.com/Mullassery/Himalayas-Browser) [![CI](https://github.com/Mullassery/Himalayas-Browser/actions/workflows/ci.yml/badge.svg)](https://github.com/Mullassery/Himalayas-Browser/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-Proprietary-blue?style=flat-square)](LICENSE) [![Version](https://img.shields.io/badge/version-0.3.0-blue?style=flat-square)](.)
+[![GitHub Stars](https://img.shields.io/github/stars/Mullassery/Himalayas-Browser?style=social)](https://github.com/Mullassery/Himalayas-Browser) [![CI](https://github.com/Mullassery/Himalayas-Browser/actions/workflows/ci.yml/badge.svg)](https://github.com/Mullassery/Himalayas-Browser/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-Proprietary-blue?style=flat-square)](LICENSE) [![Version](https://img.shields.io/badge/version-0.4.0-blue?style=flat-square)](.)
 
 ---
 
@@ -314,6 +314,7 @@ Key findings:
 - **docs/ROADMAP.md** - Keyboard & trackpad support specification
 - **docs/NATIVE_RENDERING_PLAN.md** - Native rendering engine spike findings and follow-up plan
 - **API Documentation** - Automation and scripting reference
+- **MCP Server** - `himalayas mcp` runs a real Model Context Protocol server over stdio, exposing navigate/query/click/input/get_text/submit_form/go_back/go_forward/get_current_url/get_history as MCP tools — for Claude Desktop, Claude Code, and other MCP clients to drive Himalayas directly
 - **Interactive Comparison** - Browser feature matrix (HTML)
 
 ---
@@ -327,8 +328,8 @@ Key findings:
 | Phase 2.5 | Complete | Adaptive intelligence engine (143 tests) |
 | Phase 3+ | In Progress | Multi-form factors, fleet management |
 
-Latest Version: 0.3.0 (matches `Cargo.toml`)  
-Tests Passing: 488 across the full workspace (`cargo test --features full`, the native-shell binary's own suite, and the vendored rendering engine's — 5 additional tests are `#[ignore]`d live-network/manual checks, not counted here)  
+Latest Version: 0.4.0 (matches `Cargo.toml`)  
+Tests Passing: 508 across the full workspace (`cargo test --features full`, the native-shell binary's own suite, and the vendored rendering engine's — 5 additional tests are `#[ignore]`d live-network/manual checks, not counted here)  
 Code: Rust (core) + Python (bindings)
 
 ---

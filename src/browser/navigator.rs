@@ -72,20 +72,28 @@ const MAX_REDIRECTS: usize = 10;
 
 pub struct Navigator {
     user_agent: String,
-    client: reqwest::Client,
+    client: reqwest_middleware::ClientWithMiddleware,
 }
 
 impl Navigator {
     pub fn new() -> Result<Self> {
         let user_agent = "Himalayas/0.1.0 (Agent-Native Browser)".to_string();
-        let client = reqwest::Client::builder()
+        // Built via `reqwest_middleware::reqwest` (that crate's own
+        // re-export), not this crate's direct `reqwest` dependency — see
+        // `net_cache::cached_client`'s doc comment for why the two aren't
+        // interchangeable here.
+        let base_client = reqwest_middleware::reqwest::Client::builder()
             .user_agent(user_agent.clone())
             .connect_timeout(Duration::from_secs(10))
             .timeout(Duration::from_secs(30))
             // Redirects are followed manually below so we can record the
             // chain and re-apply cookies at each hop.
-            .redirect(reqwest::redirect::Policy::none())
+            .redirect(reqwest_middleware::reqwest::redirect::Policy::none())
             .build()?;
+        // Real Cache-Control/ETag/Last-Modified-aware disk caching — see
+        // `crate::net_cache` for why this needed a shared helper rather
+        // than being set up inline here and in desktop.rs separately.
+        let client = crate::net_cache::cached_client(base_client);
         Ok(Self { user_agent, client })
     }
 
@@ -440,6 +448,33 @@ mod tests {
         get_mock.assert_async().await;
         assert_eq!(page.url, target);
         assert!(page.html.contains("Dashboard"));
+    }
+
+    #[tokio::test]
+    async fn test_navigate_does_not_refetch_a_cacheable_url() {
+        let mut server = mockito::Server::new_async().await;
+        // `mockito`'s ephemeral port makes each test run's URL unique, so
+        // there's no risk of a stale cache entry from a previous run
+        // making this pass for the wrong reason (unlike blitz-net's
+        // equivalent cache test, which uses a fixed local port and clears
+        // the cache explicitly before/after — see that test's comment).
+        let mock = server
+            .mock("GET", "/")
+            .with_status(200)
+            .with_header("cache-control", "max-age=3600")
+            .with_body("<html><body>cached</body></html>")
+            .expect(1)
+            .create_async()
+            .await;
+
+        let nav = Navigator::new().unwrap();
+        let jar = CookieJar::new();
+        let url = server.url();
+        let first = nav.navigate(&url, &jar).await.unwrap();
+        let second = nav.navigate(&url, &jar).await.unwrap();
+
+        mock.assert_async().await;
+        assert_eq!(first.html, second.html);
     }
 
     /// Live network smoke test — not run by default (`cargo test` skips

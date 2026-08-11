@@ -1374,6 +1374,7 @@ fn app() -> Element {
     // Multi-select (checkbox per row, bulk move/delete in the toolbar),
     // keyed by URL like everything else bookmark-related in this file.
     let mut selected_bookmarks = use_signal(HashSet::<String>::new);
+    let mut cache_clear_status = use_signal(|| None::<String>);
 
     // Pinned-tab restore: each `use_signal` initializer is guaranteed to
     // run exactly once (on mount), same guarantee the original single-tab
@@ -2047,6 +2048,26 @@ fn app() -> Element {
                             "Zooms loaded page content only — the address bar and tabs are unaffected. 100% is as small as it goes."
                         }
 
+                        div { style: "font-size:14px;color:{text_muted};text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;", "Privacy & Storage" }
+                        div {
+                            style: "display:flex;align-items:center;gap:8px;margin-bottom:6px;",
+                            button {
+                                style: "padding:6px 12px;border-radius:6px;border:1px solid {border};background:transparent;color:{text_color};cursor:pointer;font-size:13px;",
+                                onclick: move |_| {
+                                    let result = himalayas::net_cache::clear_http_cache();
+                                    cache_clear_status.set(Some(if result.is_ok() { "Cache cleared".to_string() } else { "Failed to clear cache".to_string() }));
+                                },
+                                "Clear cache"
+                            }
+                            if let Some(status) = cache_clear_status() {
+                                span { style: "font-size:12px;color:{text_muted};", "{status}" }
+                            }
+                        }
+                        div {
+                            style: "font-size:10.5px;color:{text_muted};margin-bottom:14px;",
+                            "Clears the on-disk HTTP cache for page navigations (not subresources like images/CSS/fonts, and not bookmarks/pinned tabs)."
+                        }
+
                         div { style: "font-size:14px;color:{text_muted};text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;", "About" }
                         div {
                             style: "color:{text_muted};",
@@ -2653,9 +2674,19 @@ const JS_TEST_PAGE: &str = r##"<html><body style="font-family: sans-serif; paddi
     </script>
 </body></html>"##;
 
-fn http_client() -> &'static reqwest::Client {
-    static CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
-    CLIENT.get_or_init(|| reqwest::Client::builder().build().expect("building reqwest client"))
+/// Real Cache-Control/ETag/Last-Modified-aware disk caching for the
+/// top-level document fetch (see `fetch_document_with_session`'s own doc
+/// comment for why it can't just use `blitz_net::Provider`) — previously
+/// none: every navigation hit the network regardless of cache headers.
+/// Built via `reqwest_middleware::reqwest` specifically, not this crate's
+/// own `reqwest` dependency — see `himalayas::net_cache::cached_client`'s
+/// doc comment for why the two aren't interchangeable.
+fn http_client() -> &'static reqwest_middleware::ClientWithMiddleware {
+    static CLIENT: OnceLock<reqwest_middleware::ClientWithMiddleware> = OnceLock::new();
+    CLIENT.get_or_init(|| {
+        let base = reqwest_middleware::reqwest::Client::builder().build().expect("building reqwest client");
+        himalayas::net_cache::cached_client(base)
+    })
 }
 
 /// `name=value` from a single raw `Set-Cookie` header value (the part before

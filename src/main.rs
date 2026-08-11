@@ -9,7 +9,9 @@ mod config;
 mod daemon;
 mod health;
 mod intelligence;
+mod mcp;
 mod metrics;
+mod net_cache;
 mod permission;
 mod server;
 
@@ -53,6 +55,12 @@ enum Command {
         #[arg(short, long, default_value = "benchmarks.json")]
         output: String,
     },
+
+    /// Run a Model Context Protocol server over stdio, exposing the same
+    /// agent capability (navigate/query/click/input/get_text/submit_form)
+    /// as the `/agent` HTTP endpoint — for MCP clients (Claude Desktop,
+    /// Claude Code, etc.) to drive Himalayas directly as a set of tools.
+    Mcp,
 }
 
 #[tokio::main]
@@ -69,6 +77,10 @@ async fn main() -> Result<()> {
             println!("\n💾 Saving results to {}...", output);
             // Results are already printed to stdout
             Ok(())
+        }
+        Some(Command::Mcp) => {
+            info!("Starting MCP server (stdio)...");
+            mcp::run_stdio_server().await
         }
         _ => {
             info!("Starting daemon...");
