@@ -268,14 +268,18 @@ mod tests {
     #[test]
     fn no_thumb_when_content_fits() {
         let port = KurboRect::new(0.0, 0.0, 800.0, 600.0);
-        assert_eq!(thumb_rect_for(AbsoluteAxis::Vertical, port, 0.0, 0.0, THUMB_THICKNESS), None);
+        assert_eq!(
+            thumb_rect_for(AbsoluteAxis::Vertical, port, 0.0, 0.0, THUMB_THICKNESS),
+            None
+        );
     }
 
     #[test]
     fn thumb_sits_at_top_when_unscrolled() {
         let port = KurboRect::new(0.0, 0.0, 800.0, 600.0);
         // 600px viewport, 400px more content below it (1000px total).
-        let thumb = thumb_rect_for(AbsoluteAxis::Vertical, port, 400.0, 0.0, THUMB_THICKNESS).unwrap();
+        let thumb =
+            thumb_rect_for(AbsoluteAxis::Vertical, port, 400.0, 0.0, THUMB_THICKNESS).unwrap();
         assert_eq!(thumb.y0, 0.0);
         assert!(thumb.height() < 600.0);
         // Vertical thumb hugs the right edge, inset by the margin.
@@ -285,9 +289,12 @@ mod tests {
     #[test]
     fn thumb_moves_down_proportionally_to_scroll_progress() {
         let port = KurboRect::new(0.0, 0.0, 800.0, 600.0);
-        let at_start = thumb_rect_for(AbsoluteAxis::Vertical, port, 400.0, 0.0, THUMB_THICKNESS).unwrap();
-        let halfway = thumb_rect_for(AbsoluteAxis::Vertical, port, 400.0, 200.0, THUMB_THICKNESS).unwrap();
-        let at_end = thumb_rect_for(AbsoluteAxis::Vertical, port, 400.0, 400.0, THUMB_THICKNESS).unwrap();
+        let at_start =
+            thumb_rect_for(AbsoluteAxis::Vertical, port, 400.0, 0.0, THUMB_THICKNESS).unwrap();
+        let halfway =
+            thumb_rect_for(AbsoluteAxis::Vertical, port, 400.0, 200.0, THUMB_THICKNESS).unwrap();
+        let at_end =
+            thumb_rect_for(AbsoluteAxis::Vertical, port, 400.0, 400.0, THUMB_THICKNESS).unwrap();
         assert!(at_start.y0 < halfway.y0);
         assert!(halfway.y0 < at_end.y0);
         // Fully scrolled: thumb's bottom edge reaches the port's bottom edge.
@@ -298,7 +305,14 @@ mod tests {
     fn thumb_length_never_shrinks_below_the_minimum() {
         let port = KurboRect::new(0.0, 0.0, 800.0, 600.0);
         // Enormous scroll extent relative to the viewport.
-        let thumb = thumb_rect_for(AbsoluteAxis::Vertical, port, 1_000_000.0, 0.0, THUMB_THICKNESS).unwrap();
+        let thumb = thumb_rect_for(
+            AbsoluteAxis::Vertical,
+            port,
+            1_000_000.0,
+            0.0,
+            THUMB_THICKNESS,
+        )
+        .unwrap();
         assert!(thumb.height() >= MIN_THUMB_LENGTH - 1e-6);
     }
 }

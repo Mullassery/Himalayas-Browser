@@ -851,25 +851,27 @@ pub(crate) fn handle_wheel<F: FnMut(DomEvent)>(
         .as_millis() as u64;
     let state = doc
         .wheel_momentum
-        .get_or_insert_with(|| WheelMomentumState { target, samples: VecDeque::new() });
+        .get_or_insert_with(|| WheelMomentumState {
+            target,
+            samples: VecDeque::new(),
+        });
     if state.target != target {
         // Wheeling over a different scrollable element than the last
         // sample — that's a new gesture, not a continuation.
         state.target = target;
         state.samples.clear();
     }
-    state.samples.push_back(PanSample { time: time_ms, dx: scroll_x as f32, dy: scroll_y as f32 });
+    state.samples.push_back(PanSample {
+        time: time_ms,
+        dx: scroll_x as f32,
+        dy: scroll_y as f32,
+    });
     let idx = state.samples.partition_point(|s| time_ms - s.time > 100);
     for _ in 0..idx {
         state.samples.pop_front();
     }
 
-    let has_changed = doc.scroll_by(
-        target,
-        scroll_x,
-        scroll_y,
-        &mut dispatch_event,
-    );
+    let has_changed = doc.scroll_by(target, scroll_x, scroll_y, &mut dispatch_event);
     if has_changed {
         doc.shell_provider.request_redraw();
     }
@@ -881,22 +883,47 @@ mod wheel_momentum_tests {
 
     #[test]
     fn velocity_is_none_with_fewer_than_two_samples() {
-        let empty = WheelMomentumState { target: None, samples: VecDeque::new() };
+        let empty = WheelMomentumState {
+            target: None,
+            samples: VecDeque::new(),
+        };
         assert_eq!(empty.velocity(), None);
 
-        let mut one_sample = WheelMomentumState { target: None, samples: VecDeque::new() };
-        one_sample.samples.push_back(PanSample { time: 100, dx: 5.0, dy: 5.0 });
+        let mut one_sample = WheelMomentumState {
+            target: None,
+            samples: VecDeque::new(),
+        };
+        one_sample.samples.push_back(PanSample {
+            time: 100,
+            dx: 5.0,
+            dy: 5.0,
+        });
         // A single sample has zero time span — no velocity to compute.
         assert_eq!(one_sample.velocity(), None);
     }
 
     #[test]
     fn velocity_averages_deltas_over_the_sample_window() {
-        let mut state = WheelMomentumState { target: None, samples: VecDeque::new() };
+        let mut state = WheelMomentumState {
+            target: None,
+            samples: VecDeque::new(),
+        };
         // Consistent 10px/10ms of downward scroll across 3 samples.
-        state.samples.push_back(PanSample { time: 0, dx: 0.0, dy: 10.0 });
-        state.samples.push_back(PanSample { time: 10, dx: 0.0, dy: 10.0 });
-        state.samples.push_back(PanSample { time: 20, dx: 0.0, dy: 10.0 });
+        state.samples.push_back(PanSample {
+            time: 0,
+            dx: 0.0,
+            dy: 10.0,
+        });
+        state.samples.push_back(PanSample {
+            time: 10,
+            dx: 0.0,
+            dy: 10.0,
+        });
+        state.samples.push_back(PanSample {
+            time: 20,
+            dx: 0.0,
+            dy: 10.0,
+        });
 
         let (vx, vy) = state.velocity().unwrap();
         assert_eq!(vx, 0.0);
@@ -911,8 +938,15 @@ mod wheel_momentum_tests {
         // `handle_wheel` — a WheelMomentumState from a previous gesture over
         // a *different* node must not contribute samples to a fling on the
         // new one.
-        let mut state = WheelMomentumState { target: Some(NodeId::from_u64(0)), samples: VecDeque::new() };
-        state.samples.push_back(PanSample { time: 0, dx: 0.0, dy: 50.0 });
+        let mut state = WheelMomentumState {
+            target: Some(NodeId::from_u64(0)),
+            samples: VecDeque::new(),
+        };
+        state.samples.push_back(PanSample {
+            time: 0,
+            dx: 0.0,
+            dy: 50.0,
+        });
 
         let new_target = Some(NodeId::from_u64(1));
         if state.target != new_target {

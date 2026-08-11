@@ -966,117 +966,216 @@ impl<'doc> DocumentMutator<'doc> {
         self.load_image_now(target_id);
     }
 
+    /// `<picture><source></picture>` art-direction selection — checked
+    /// before the plain `<img src/srcset>` resolution below in
+    /// `load_image_now`, since a picture's `<source>`s take priority over
+    /// its fallback `<img>`'s own attributes per spec (the `<img>` is only
+    /// used when *no* `<source>` matches). `None` covers both "not inside
+    /// a `<picture>` at all" and "inside one, but nothing matched" —
+    /// either way `load_image_now` falls through to the existing
+    /// `<img>`-only logic unchanged.
+    ///
+    /// Real media-query evaluation would need a full CSS conditions parser
+    /// (compound `and`/`or`, arbitrary features); this reuses
+    /// `responsive_images::eval_media_condition`'s existing
+    /// `min-width`/`max-width`-only subset — same scope trade-off already
+    /// made for the `sizes` attribute, and the same subset that covers the
+    /// overwhelming majority of real-world responsive art direction
+    /// (swap image at a breakpoint), not full art-direction media queries
+    /// like `orientation`/`aspect-ratio`.
+    fn picture_source_for(&self, img_id: NodeId) -> Option<String> {
+        let img_node = &self.doc.nodes[img_id];
+        let parent_id = img_node.parent?;
+        let parent = &self.doc.nodes[parent_id];
+        if !parent
+            .data
+            .is_element_with_tag_name(&local_name!("picture"))
+        {
+            return None;
+        }
+
+        let viewport = &self.doc.viewport;
+        let viewport_width_px =
+            (viewport.window_size.0 != 0).then(|| viewport.window_size.0 as f32 / viewport.scale());
+
+        for &child_id in &parent.children {
+            if child_id == img_id {
+                break; // reached the <img> fallback without an earlier <source> match
+            }
+            let child = &self.doc.nodes[child_id];
+            if !child.data.is_element_with_tag_name(&local_name!("source")) {
+                continue;
+            }
+            if let Some(mime) = child.attr(local_name!("type"))
+                && !crate::responsive_images::is_supported_image_mime_type(mime)
+            {
+                continue;
+            }
+            if let Some(media) = child.attr(local_name!("media")) {
+                let condition = media
+                    .trim()
+                    .strip_prefix('(')
+                    .and_then(|s| s.strip_suffix(')'));
+                let matched = match (condition, viewport_width_px) {
+                    (Some(condition), Some(width)) => {
+                        crate::responsive_images::eval_media_condition(condition, width)
+                    }
+                    // A `media` attr present but unparseable (compound
+                    // condition, etc.) or an unknown viewport — don't
+                    // guess whether it matches, skip this source.
+                    _ => false,
+                };
+                if !matched {
+                    continue;
+                }
+            }
+            let Some(srcset) = child.attr(local_name!("srcset")) else {
+                continue;
+            };
+            let Some(width) = viewport_width_px else {
+                continue;
+            };
+            let sizes = child.attr(local_name!("sizes"));
+            let target_width_px = crate::responsive_images::eval_sizes(sizes, width);
+            if let Some(url) = crate::responsive_images::select_srcset_candidate(
+                srcset,
+                target_width_px,
+                viewport.hidpi_scale,
+            ) {
+                return Some(url);
+            }
+        }
+        None
+    }
+
     /// The actual image fetch, either because it was never lazy in the
     /// first place or because `BaseDocument::check_lazy_images` just
     /// decided it's close enough to the viewport to start loading now.
     pub(crate) fn load_image_now(&mut self, target_id: NodeId) {
+        let picture_src = self.picture_source_for(target_id);
         let node = &self.doc.nodes[target_id];
-        if let Some(raw_src) = node.attr(local_name!("src")) {
-            if !raw_src.is_empty() {
-                // Himalayas patch: `srcset`/`sizes` responsive image
-                // selection (real standards-track behavior — see
-                // `crate::responsive_images`), plus a fallback for the
-                // extremely common (if unstandardized) lazy-load
-                // convention: `data-src`/`data-original` holding the real
-                // URL while `src=` points at a placeholder (often a 1x1
-                // pixel) meant to be swapped in by JS on scroll/visibility
-                // via libraries like lazysizes — confirmed live on
-                // thehindu.com, where ~97 of the page's real content images
-                // used exactly this pattern and were stuck on their
-                // placeholder forever (we don't run that JS). The checked
-                // attribute names (see `lazy_src` below) are the ones real
-                // lazy-load libraries and sites actually use in practice,
-                // not a standard (there is no standard here) — a finite,
-                // explicit allowlist that's grown as real sites hit it, not
-                // a wildcard "any data-* that looks like a URL" heuristic
-                // (too easy to misfire on non-image data attributes).
-                // `data-srcset` (the lazy+responsive combo some of those
-                // same libraries use) gets the same sizes-aware selection
-                // as plain `srcset`, and wins if both are present (a lazy
-                // responsive image is still fundamentally a lazy image).
-                //
-                // Falls back to the plain `src` above whenever none of
-                // this applies, a `srcset`/`data-srcset` doesn't parse into
-                // anything usable, or the viewport size isn't known yet
-                // (`window_size` defaults to `(0, 0)` before the shell
-                // reports a real one — happens for documents built before a
-                // window exists, e.g. during tests).
-                let srcset_attr =
-                    node.attr(LocalName::from("data-srcset")).or_else(|| node.attr(local_name!("srcset")));
-                let selected_srcset = srcset_attr.and_then(|srcset| {
-                    let viewport = &self.doc.viewport;
-                    if viewport.window_size.0 == 0 {
-                        return None;
-                    }
-                    let viewport_width_px = viewport.window_size.0 as f32 / viewport.scale();
-                    let sizes = node.attr(local_name!("sizes"));
-                    let target_width_px = crate::responsive_images::eval_sizes(sizes, viewport_width_px);
-                    crate::responsive_images::select_srcset_candidate(srcset, target_width_px, viewport.hidpi_scale)
-                });
-                // Widened after a second real site (onmanorama.com) hit the
-                // identical placeholder-`src`-plus-lazy-attribute pattern
-                // under yet another attribute name (`data-websrc` — a
-                // device-variant convention: web/mobile/tablet sources,
-                // `data-websrc` being the desktop-appropriate one). Two
-                // different real sites landing on two different attribute
-                // names for the same underlying pattern in quick succession
-                // is a sign this convention-recognition approach needs to
-                // keep widening as real sites are hit, not that either one
-                // was a one-off not worth generalizing.
-                let lazy_src = node
-                    .attr(LocalName::from("data-src"))
-                    .or_else(|| node.attr(LocalName::from("data-original")))
-                    .or_else(|| node.attr(LocalName::from("data-websrc")))
-                    .or_else(|| node.attr(LocalName::from("data-lazy-src")))
-                    .or_else(|| node.attr(LocalName::from("data-lazy")))
-                    .filter(|s| !s.is_empty())
-                    .map(str::to_string);
-
-                let raw_src = selected_srcset.or(lazy_src).unwrap_or_else(|| raw_src.to_string());
-                let raw_src = raw_src.as_str();
-
-                let src = self.doc.resolve_url(raw_src);
-                let src_string = src.as_str();
-
-                // Check cache first
-                if let Some(cached_image) = self.doc.image_cache.get(src_string) {
-                    #[cfg(feature = "tracing")]
-                    tracing::info!("Loading image {src_string} from cache");
-                    let node = &mut self.doc.nodes[target_id];
-                    node.element_data_mut().unwrap().special_data =
-                        SpecialElementData::Image(Box::new(cached_image.clone()));
-                    node.cache_mut().clear();
-                    node.insert_damage(ALL_DAMAGE);
-                    return;
+        let own_src = node.attr(local_name!("src"));
+        if picture_src.is_some() || own_src.is_some_and(|s| !s.is_empty()) {
+            // Himalayas patch: `srcset`/`sizes` responsive image
+            // selection (real standards-track behavior — see
+            // `crate::responsive_images`), plus a fallback for the
+            // extremely common (if unstandardized) lazy-load
+            // convention: `data-src`/`data-original` holding the real
+            // URL while `src=` points at a placeholder (often a 1x1
+            // pixel) meant to be swapped in by JS on scroll/visibility
+            // via libraries like lazysizes — confirmed live on
+            // thehindu.com, where ~97 of the page's real content images
+            // used exactly this pattern and were stuck on their
+            // placeholder forever (we don't run that JS). The checked
+            // attribute names (see `lazy_src` below) are the ones real
+            // lazy-load libraries and sites actually use in practice,
+            // not a standard (there is no standard here) — a finite,
+            // explicit allowlist that's grown as real sites hit it, not
+            // a wildcard "any data-* that looks like a URL" heuristic
+            // (too easy to misfire on non-image data attributes).
+            // `data-srcset` (the lazy+responsive combo some of those
+            // same libraries use) gets the same sizes-aware selection
+            // as plain `srcset`, and wins if both are present (a lazy
+            // responsive image is still fundamentally a lazy image).
+            //
+            // Falls back to the plain `src` above whenever none of
+            // this applies, a `srcset`/`data-srcset` doesn't parse into
+            // anything usable, or the viewport size isn't known yet
+            // (`window_size` defaults to `(0, 0)` before the shell
+            // reports a real one — happens for documents built before a
+            // window exists, e.g. during tests).
+            let srcset_attr = node
+                .attr(LocalName::from("data-srcset"))
+                .or_else(|| node.attr(local_name!("srcset")));
+            let selected_srcset = srcset_attr.and_then(|srcset| {
+                let viewport = &self.doc.viewport;
+                if viewport.window_size.0 == 0 {
+                    return None;
                 }
+                let viewport_width_px = viewport.window_size.0 as f32 / viewport.scale();
+                let sizes = node.attr(local_name!("sizes"));
+                let target_width_px =
+                    crate::responsive_images::eval_sizes(sizes, viewport_width_px);
+                crate::responsive_images::select_srcset_candidate(
+                    srcset,
+                    target_width_px,
+                    viewport.hidpi_scale,
+                )
+            });
+            // Widened after a second real site (onmanorama.com) hit the
+            // identical placeholder-`src`-plus-lazy-attribute pattern
+            // under yet another attribute name (`data-websrc` — a
+            // device-variant convention: web/mobile/tablet sources,
+            // `data-websrc` being the desktop-appropriate one). Two
+            // different real sites landing on two different attribute
+            // names for the same underlying pattern in quick succession
+            // is a sign this convention-recognition approach needs to
+            // keep widening as real sites are hit, not that either one
+            // was a one-off not worth generalizing.
+            let lazy_src = node
+                .attr(LocalName::from("data-src"))
+                .or_else(|| node.attr(LocalName::from("data-original")))
+                .or_else(|| node.attr(LocalName::from("data-websrc")))
+                .or_else(|| node.attr(LocalName::from("data-lazy-src")))
+                .or_else(|| node.attr(LocalName::from("data-lazy")))
+                .filter(|s| !s.is_empty())
+                .map(str::to_string);
 
-                // Check if there's already a pending request for this URL
-                if let Some(waiting_list) = self.doc.pending_images.get_mut(src_string) {
-                    #[cfg(feature = "tracing")]
-                    tracing::info!("Image {src_string} already pending, queueing node {target_id}");
-                    waiting_list.push((target_id, ImageType::Image));
-                    return;
-                }
+            // `picture_src` (a matched `<picture><source>`, if any)
+            // takes priority over everything below — per spec, a
+            // matched source's candidate replaces the `<img>`'s own
+            // `src`/`srcset` entirely, it doesn't just contribute one
+            // more option into the same fallback chain.
+            let Some(raw_src) = picture_src
+                .or(selected_srcset)
+                .or(lazy_src)
+                .or_else(|| own_src.map(str::to_string))
+            else {
+                return;
+            };
+            let raw_src = raw_src.as_str();
 
-                // Start fetch and track as pending
+            let src = self.doc.resolve_url(raw_src);
+            let src_string = src.as_str();
+
+            // Check cache first
+            if let Some(cached_image) = self.doc.image_cache.get(src_string) {
                 #[cfg(feature = "tracing")]
-                tracing::info!("Fetching image {src_string}");
-                self.doc
-                    .pending_images
-                    .insert(src_string.to_string(), vec![(target_id, ImageType::Image)]);
-
-                self.doc.net_provider.fetch(
-                    self.doc.id(),
-                    self.doc.build_request(src),
-                    ResourceHandler::boxed(
-                        self.doc.tx.clone(),
-                        self.doc.id(),
-                        None, // Don't pass node_id, we'll handle it via pending_images
-                        self.doc.shell_provider.clone(),
-                        ImageHandler::new(ImageType::Image),
-                    ),
-                );
+                tracing::info!("Loading image {src_string} from cache");
+                let node = &mut self.doc.nodes[target_id];
+                node.element_data_mut().unwrap().special_data =
+                    SpecialElementData::Image(Box::new(cached_image.clone()));
+                node.cache_mut().clear();
+                node.insert_damage(ALL_DAMAGE);
+                return;
             }
+
+            // Check if there's already a pending request for this URL
+            if let Some(waiting_list) = self.doc.pending_images.get_mut(src_string) {
+                #[cfg(feature = "tracing")]
+                tracing::info!("Image {src_string} already pending, queueing node {target_id}");
+                waiting_list.push((target_id, ImageType::Image));
+                return;
+            }
+
+            // Start fetch and track as pending
+            #[cfg(feature = "tracing")]
+            tracing::info!("Fetching image {src_string}");
+            self.doc
+                .pending_images
+                .insert(src_string.to_string(), vec![(target_id, ImageType::Image)]);
+
+            self.doc.net_provider.fetch(
+                self.doc.id(),
+                self.doc.build_request(src),
+                ResourceHandler::boxed(
+                    self.doc.tx.clone(),
+                    self.doc.id(),
+                    None, // Don't pass node_id, we'll handle it via pending_images
+                    self.doc.shell_provider.clone(),
+                    ImageHandler::new(ImageType::Image),
+                ),
+            );
         }
     }
 

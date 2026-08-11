@@ -1704,7 +1704,10 @@ impl BaseDocument {
     fn hit_viewport_scrollbar(&self, x: f32, y: f32) -> Option<crate::node::ScrollbarRef> {
         let root_id = self.root_element().id;
         let scale = self.viewport.scale() as f64;
-        for axis in [taffy::AbsoluteAxis::Vertical, taffy::AbsoluteAxis::Horizontal] {
+        for axis in [
+            taffy::AbsoluteAxis::Vertical,
+            taffy::AbsoluteAxis::Horizontal,
+        ] {
             if let Some(thumb) = self.viewport_scrollbar_thumb(axis) {
                 let scaled = kurbo::Rect::new(
                     thumb.x0 * scale,
@@ -1713,7 +1716,10 @@ impl BaseDocument {
                     thumb.y1 * scale,
                 );
                 if scaled.contains(kurbo::Point::new(x as f64, y as f64)) {
-                    return Some(crate::node::ScrollbarRef { node_id: root_id, axis });
+                    return Some(crate::node::ScrollbarRef {
+                        node_id: root_id,
+                        axis,
+                    });
                 }
             }
         }
@@ -2411,8 +2417,10 @@ impl BaseDocument {
     pub fn viewport_scrollbar_thumb(&self, axis: taffy::AbsoluteAxis) -> Option<kurbo::Rect> {
         let (content_extent, window_extent) = self.viewport_content_and_window_extent(axis);
         let scroll_extent = content_extent - window_extent;
-        let (_, window_width) = self.viewport_content_and_window_extent(taffy::AbsoluteAxis::Horizontal);
-        let (_, window_height) = self.viewport_content_and_window_extent(taffy::AbsoluteAxis::Vertical);
+        let (_, window_width) =
+            self.viewport_content_and_window_extent(taffy::AbsoluteAxis::Horizontal);
+        let (_, window_height) =
+            self.viewport_content_and_window_extent(taffy::AbsoluteAxis::Vertical);
         let port = kurbo::Rect::new(0.0, 0.0, window_width, window_height);
         let scroll_offset = match axis {
             taffy::AbsoluteAxis::Horizontal => self.viewport_scroll.x,

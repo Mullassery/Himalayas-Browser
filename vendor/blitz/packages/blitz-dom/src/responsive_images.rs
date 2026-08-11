@@ -12,6 +12,29 @@
 //! top of the same idea) are a separate, larger follow-up — this covers the
 //! much more common plain `<img srcset>` case.
 
+/// `<picture><source type="...">` matching (`DocumentMutator::picture_source_for`,
+/// `mutator.rs`) — must match the codecs actually compiled into the `image`
+/// crate (`vendor/blitz/Cargo.toml`'s `image` dependency: `png`, `jpeg`,
+/// `gif`, `webp`, `bmp`, `avif`, `ico`), not the full set a browser could
+/// theoretically support. A `<source type="image/avif">` matching here but
+/// failing to decode (wrong codec set, corrupt file, etc.) still falls
+/// through correctly — `load_image_now` only uses this to *pick* a
+/// candidate, the existing decode-failure handling is unchanged.
+pub(crate) fn is_supported_image_mime_type(mime: &str) -> bool {
+    matches!(
+        mime.trim(),
+        "image/png"
+            | "image/jpeg"
+            | "image/jpg"
+            | "image/gif"
+            | "image/webp"
+            | "image/bmp"
+            | "image/avif"
+            | "image/x-icon"
+            | "image/vnd.microsoft.icon"
+    )
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum Descriptor {
     /// `800w` — the candidate's intrinsic width in px.
@@ -44,8 +67,14 @@ fn parse_srcset(value: &str) -> Vec<Candidate> {
             let mut parts = entry.split_whitespace();
             let url = parts.next()?.to_string();
             let descriptor = match parts.next() {
-                Some(d) if d.ends_with('w') => d[..d.len() - 1].parse::<u32>().ok().map(Descriptor::Width)?,
-                Some(d) if d.ends_with('x') => d[..d.len() - 1].parse::<f32>().ok().map(Descriptor::Density)?,
+                Some(d) if d.ends_with('w') => d[..d.len() - 1]
+                    .parse::<u32>()
+                    .ok()
+                    .map(Descriptor::Width)?,
+                Some(d) if d.ends_with('x') => d[..d.len() - 1]
+                    .parse::<f32>()
+                    .ok()
+                    .map(Descriptor::Density)?,
                 Some(_) => return None, // unrecognized descriptor — skip rather than guess
                 None => Descriptor::Density(1.0),
             };
@@ -75,7 +104,9 @@ pub(crate) fn eval_sizes(value: Option<&str>, viewport_width_px: f32) -> f32 {
             continue;
         }
         if let Some(rest) = entry.strip_prefix('(') {
-            let Some(close) = rest.find(')') else { continue };
+            let Some(close) = rest.find(')') else {
+                continue;
+            };
             let condition = &rest[..close];
             let length = rest[close + 1..].trim();
             if eval_media_condition(condition, viewport_width_px) {
@@ -92,13 +123,20 @@ pub(crate) fn eval_sizes(value: Option<&str>, viewport_width_px: f32) -> f32 {
     default
 }
 
-fn eval_media_condition(condition: &str, viewport_width_px: f32) -> bool {
+/// Shared with `<picture><source media="...">` matching
+/// (`DocumentMutator::picture_source_for`, `mutator.rs`) — the `media`
+/// attribute uses the same media-query grammar `sizes`' conditions do, so
+/// this covers the same practical subset (`min-width`/`max-width`) for
+/// both rather than a second copy.
+pub(crate) fn eval_media_condition(condition: &str, viewport_width_px: f32) -> bool {
     let condition = condition.trim();
     if let Some(px_str) = condition.strip_prefix("max-width:") {
-        return parse_length_px(px_str.trim(), viewport_width_px).is_some_and(|max| viewport_width_px <= max);
+        return parse_length_px(px_str.trim(), viewport_width_px)
+            .is_some_and(|max| viewport_width_px <= max);
     }
     if let Some(px_str) = condition.strip_prefix("min-width:") {
-        return parse_length_px(px_str.trim(), viewport_width_px).is_some_and(|min| viewport_width_px >= min);
+        return parse_length_px(px_str.trim(), viewport_width_px)
+            .is_some_and(|min| viewport_width_px >= min);
     }
     false
 }
@@ -109,7 +147,11 @@ fn parse_length_px(value: &str, viewport_width_px: f32) -> Option<f32> {
         return n.trim().parse::<f32>().ok();
     }
     if let Some(n) = value.strip_suffix("vw") {
-        return n.trim().parse::<f32>().ok().map(|vw| vw / 100.0 * viewport_width_px);
+        return n
+            .trim()
+            .parse::<f32>()
+            .ok()
+            .map(|vw| vw / 100.0 * viewport_width_px);
     }
     None
 }
@@ -125,17 +167,25 @@ fn parse_length_px(value: &str, viewport_width_px: f32) -> Option<f32> {
 /// requested — that's a quality regression the whole point of this feature
 /// is to avoid triggering, not cause). Density descriptors: closest to
 /// `dpr`.
-pub(crate) fn select_srcset_candidate(value: &str, target_width_px: f32, dpr: f32) -> Option<String> {
+pub(crate) fn select_srcset_candidate(
+    value: &str,
+    target_width_px: f32,
+    dpr: f32,
+) -> Option<String> {
     let candidates = parse_srcset(value);
     if candidates.is_empty() {
         return None;
     }
 
-    let has_width_descriptors = candidates.iter().any(|c| matches!(c.descriptor, Descriptor::Width(_)));
+    let has_width_descriptors = candidates
+        .iter()
+        .any(|c| matches!(c.descriptor, Descriptor::Width(_)));
     if has_width_descriptors {
         let needed = target_width_px * dpr;
-        let mut sorted: Vec<&Candidate> =
-            candidates.iter().filter(|c| matches!(c.descriptor, Descriptor::Width(_))).collect();
+        let mut sorted: Vec<&Candidate> = candidates
+            .iter()
+            .filter(|c| matches!(c.descriptor, Descriptor::Width(_)))
+            .collect();
         sorted.sort_by_key(|c| match c.descriptor {
             Descriptor::Width(w) => w,
             Descriptor::Density(_) => 0,
@@ -208,24 +258,50 @@ mod tests {
     fn select_width_descriptor_picks_smallest_sufficient_candidate() {
         let srcset = "small.jpg 480w, medium.jpg 800w, large.jpg 1600w";
         // Need ~640px (320 CSS px * 2 DPR) — 800w is the smallest that covers it.
-        assert_eq!(select_srcset_candidate(srcset, 320.0, 2.0), Some("medium.jpg".to_string()));
+        assert_eq!(
+            select_srcset_candidate(srcset, 320.0, 2.0),
+            Some("medium.jpg".to_string())
+        );
     }
 
     #[test]
     fn select_width_descriptor_falls_back_to_largest_when_nothing_is_big_enough() {
         let srcset = "small.jpg 480w, medium.jpg 800w";
-        assert_eq!(select_srcset_candidate(srcset, 2000.0, 2.0), Some("medium.jpg".to_string()));
+        assert_eq!(
+            select_srcset_candidate(srcset, 2000.0, 2.0),
+            Some("medium.jpg".to_string())
+        );
     }
 
     #[test]
     fn select_density_descriptor_picks_closest_to_dpr() {
         let srcset = "base.jpg 1x, base-2x.jpg 2x, base-3x.jpg 3x";
-        assert_eq!(select_srcset_candidate(srcset, 100.0, 2.0), Some("base-2x.jpg".to_string()));
+        assert_eq!(
+            select_srcset_candidate(srcset, 100.0, 2.0),
+            Some("base-2x.jpg".to_string())
+        );
     }
 
     #[test]
     fn select_returns_none_for_empty_srcset() {
         assert_eq!(select_srcset_candidate("", 100.0, 1.0), None);
         assert_eq!(select_srcset_candidate("   ", 100.0, 1.0), None);
+    }
+
+    #[test]
+    fn recognizes_the_codecs_actually_compiled_in() {
+        assert!(is_supported_image_mime_type("image/avif"));
+        assert!(is_supported_image_mime_type("image/webp"));
+        assert!(is_supported_image_mime_type(" image/png "));
+        assert!(!is_supported_image_mime_type("image/heic"));
+        assert!(!is_supported_image_mime_type("image/tiff"));
+    }
+
+    #[test]
+    fn media_condition_shares_min_max_width_logic_with_sizes() {
+        assert!(eval_media_condition("min-width: 800px", 1000.0));
+        assert!(!eval_media_condition("min-width: 800px", 400.0));
+        assert!(eval_media_condition("max-width: 600px", 400.0));
+        assert!(!eval_media_condition("max-width: 600px", 1000.0));
     }
 }

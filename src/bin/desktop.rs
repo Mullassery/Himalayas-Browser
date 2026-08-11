@@ -972,6 +972,92 @@ struct Tab {
     pinned: bool,
 }
 
+/// A pinned tab, as persisted to disk — see `SessionState`. Just enough to
+/// recreate the tab (`Tab::new` needs a URL) and show something sensible
+/// before it finishes reloading (the title from last time, until the page
+/// re-fetches and overwrites it) — not a snapshot of scroll position,
+/// history, or anything else about the tab's prior state.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct PinnedTabRecord {
+    url: String,
+    title: String,
+}
+
+/// Session persistence — currently just pinned tabs (see the "Pin a tab"
+/// section of docs/NATIVE_RENDERING_PLAN.md's "Next phases"; this is the
+/// first thing in `desktop.rs` that persists *anything* across a restart,
+/// everything else — tabs, bookmarks, folders, theme — is still in-memory
+/// only). `restore_pinned_tabs` is itself persisted (not just the tab
+/// list) so turning the setting off is remembered too, not just acted on
+/// once.
+#[derive(Serialize, Deserialize)]
+struct SessionState {
+    restore_pinned_tabs: bool,
+    pinned_tabs: Vec<PinnedTabRecord>,
+}
+
+impl Default for SessionState {
+    fn default() -> Self {
+        // Matches how real browsers default this: once you've pinned
+        // something, it survives a restart unless you turn that off
+        // explicitly — not an opt-in most users would ever find.
+        Self { restore_pinned_tabs: true, pinned_tabs: Vec::new() }
+    }
+}
+
+fn session_state_path() -> Option<std::path::PathBuf> {
+    directories::ProjectDirs::from("com", "Himalayas", "Himalayas")
+        .map(|dirs| dirs.config_dir().join("session.json"))
+}
+
+/// Split from `load_session_state`/`save_session_state` (which hardcode the
+/// real OS config dir via `session_state_path`) so tests can exercise the
+/// actual read/write/default-on-missing-or-corrupt logic against a
+/// throwaway path instead of the user's real config directory.
+fn load_session_state_from(path: &std::path::Path) -> SessionState {
+    let Ok(content) = std::fs::read_to_string(path) else { return SessionState::default() };
+    serde_json::from_str(&content).unwrap_or_default()
+}
+
+fn save_session_state_to(path: &std::path::Path, state: &SessionState) {
+    if let Some(parent) = path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    if let Ok(json) = serde_json::to_string_pretty(state) {
+        let _ = std::fs::write(path, json);
+    }
+}
+
+fn load_session_state() -> SessionState {
+    let Some(path) = session_state_path() else { return SessionState::default() };
+    load_session_state_from(&path)
+}
+
+fn save_session_state(state: &SessionState) {
+    let Some(path) = session_state_path() else { return };
+    save_session_state_to(&path, state);
+}
+
+/// Rebuild a `SessionState` from the live `tabs` list — the part of
+/// `persist_pinned_tabs` that's pure/worth testing directly without disk
+/// I/O. Doesn't track every field of `Tab`, only what `PinnedTabRecord`
+/// needs.
+fn pinned_tabs_session_state(tabs: &[Tab], restore_pinned_tabs: bool) -> SessionState {
+    let pinned_tabs = tabs
+        .iter()
+        .filter(|t| t.pinned)
+        .map(|t| PinnedTabRecord { url: t.url.clone(), title: t.title.clone() })
+        .collect();
+    SessionState { restore_pinned_tabs, pinned_tabs }
+}
+
+/// Called after every pin/unpin, pinned-tab close, or drag that crosses the
+/// pinned/unpinned boundary (see the tab strip in `app()`), and whenever
+/// the "restore pinned tabs" setting itself changes.
+fn persist_pinned_tabs(tabs: &[Tab], restore_pinned_tabs: bool) {
+    save_session_state(&pinned_tabs_session_state(tabs, restore_pinned_tabs));
+}
+
 /// A saved bookmark — see the star button/popover and the Bookmark Manager
 /// overlay in `app()`. In-memory only for now (cleared on restart, like
 /// every other piece of session state in this file); `folder` is a flat
@@ -1278,10 +1364,49 @@ fn app() -> Element {
     let mut bookmark_manager_editing_url = use_signal(|| None::<String>);
     let mut bookmark_manager_editing_draft = use_signal(String::new);
     let mut import_export_status = use_signal(|| None::<String>);
+    // Drag-a-bookmark-onto-a-folder-header to move it (reuses the same
+    // mousedown-arm/mouseenter-swap shape the tab strip's drag reorder
+    // already established — no real HTML5 drag events fire in this shell).
+    // Not full manual reordering: dropping just changes `folder`, it
+    // doesn't reposition the bookmark within a folder's sorted list — see
+    // the doc comment above the Bookmark Manager's `if` block.
+    let mut dragging_bookmark = use_signal(|| None::<String>);
+    // Multi-select (checkbox per row, bulk move/delete in the toolbar),
+    // keyed by URL like everything else bookmark-related in this file.
+    let mut selected_bookmarks = use_signal(HashSet::<String>::new);
 
-    let mut tabs = use_signal(|| vec![Tab::new(0, "https://example.com", default_isolation_mode())]);
-    let mut active_id = use_signal(|| 0u32);
-    let mut next_id = use_signal(|| 1u32);
+    // Pinned-tab restore: each `use_signal` initializer is guaranteed to
+    // run exactly once (on mount), same guarantee the original single-tab
+    // initializer already relied on for its own `Tab::new` side effect
+    // (`browser().open_tab(...)`) — so it's safe for each of these three to
+    // independently call `load_session_state()` (a cheap file read) rather
+    // than sharing one precomputed value across signals, which would need
+    // a different hook shape to keep that same one-time-only guarantee.
+    let mut restore_pinned_tabs_setting = use_signal(|| load_session_state().restore_pinned_tabs);
+    let mut tabs = use_signal(|| {
+        let session = load_session_state();
+        let mut list = Vec::new();
+        let mut next = 0u32;
+        if session.restore_pinned_tabs {
+            for record in &session.pinned_tabs {
+                let mut tab = Tab::new(next, &record.url, default_isolation_mode());
+                tab.pinned = true;
+                tab.title = record.title.clone();
+                list.push(tab);
+                next += 1;
+            }
+        }
+        list.push(Tab::new(next, "https://example.com", default_isolation_mode()));
+        list
+    });
+    let mut active_id = use_signal(|| {
+        let session = load_session_state();
+        if session.restore_pinned_tabs { session.pinned_tabs.len() as u32 } else { 0 }
+    });
+    let mut next_id = use_signal(|| {
+        let session = load_session_state();
+        (if session.restore_pinned_tabs { session.pinned_tabs.len() as u32 } else { 0 }) + 1
+    });
     let mut address_input = use_signal(|| "https://example.com".to_string());
 
     // Tab reordering: real HTML5 drag events (ondragstart/ondragover/ondrop)
@@ -1367,7 +1492,11 @@ fn app() -> Element {
         if let Some(backend_id) = backend_id {
             let _ = browser().close_tab(tab_manager(), &backend_id);
         }
+        let was_pinned = tabs.read().iter().find(|t| t.id == id).is_some_and(|t| t.pinned);
         tabs.write().retain(|t| t.id != id);
+        if was_pinned {
+            persist_pinned_tabs(&tabs.read(), restore_pinned_tabs_setting());
+        }
         if active_id() == id {
             if let Some(first) = tabs.read().first() {
                 active_id.set(first.id);
@@ -1472,7 +1601,15 @@ fn app() -> Element {
             // Tab strip
             div {
                 style: "display:flex;gap:6px;padding:8px 8px 0;background:{bg};align-items:center;border-bottom:1px solid {border};",
-                onmouseup: move |_| dragging_tab.set(None),
+                onmouseup: move |_| {
+                    // A drag may have crossed the pinned/unpinned boundary
+                    // (see `onmouseenter` below) — persist once here, at
+                    // drag-end, rather than on every hover during the drag.
+                    if dragging_tab().is_some() {
+                        persist_pinned_tabs(&tabs.read(), restore_pinned_tabs_setting());
+                    }
+                    dragging_tab.set(None);
+                },
                 for tab in tabs.read().iter().cloned() {
                     div {
                         key: "{tab.id}",
@@ -1575,6 +1712,7 @@ fn app() -> Element {
                                         let target_index = other_pinned_count.min(t.len());
                                         t.insert(target_index, tab);
                                     }
+                                    persist_pinned_tabs(&t, restore_pinned_tabs_setting());
                                     drop(t);
                                     tab_context_menu.set(None);
                                 },
@@ -1840,6 +1978,32 @@ fn app() -> Element {
                             "New-tab session isolation. Applies to tabs opened from now on, not tabs already open."
                         }
 
+                        div { style: "font-size:14px;color:{text_muted};text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;", "Startup" }
+                        div {
+                            style: "display:flex;align-items:center;gap:8px;margin-bottom:14px;",
+                            {
+                                let on = restore_pinned_tabs_setting();
+                                rsx! {
+                                    button {
+                                        style: format!("width:36px;height:20px;border-radius:10px;border:1px solid {border};background:{};cursor:pointer;position:relative;padding:0;", if on { accent } else { "transparent" }),
+                                        onclick: move |_| {
+                                            let new_value = !restore_pinned_tabs_setting();
+                                            restore_pinned_tabs_setting.set(new_value);
+                                            persist_pinned_tabs(&tabs.read(), new_value);
+                                        },
+                                        div {
+                                            style: format!("width:14px;height:14px;border-radius:50%;background:{text_color};position:absolute;top:2px;left:{};transition:left 0.1s;", if on { "18px" } else { "2px" }),
+                                        }
+                                    }
+                                    span { style: "font-size:13px;color:{text_color};", "Restore pinned tabs" }
+                                }
+                            }
+                        }
+                        div {
+                            style: "font-size:10.5px;color:{text_muted};margin-bottom:14px;",
+                            "Pinned tabs are remembered across restarts when this is on."
+                        }
+
                         div { style: "font-size:14px;color:{text_muted};text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;", "Page zoom" }
                         div {
                             style: "display:flex;align-items:center;gap:6px;margin-bottom:6px;",
@@ -1893,12 +2057,16 @@ fn app() -> Element {
             }
 
             // Bookmark Manager — a bigger, separate view from the star
-            // button's quick add/edit popover above. Deliberately scoped:
-            // flat (single-level) folders with search/sort/rename/delete,
-            // HTML (Netscape format, universal browser compatibility) and
-            // JSON (Himalayas-native backup) import/export. Not built:
-            // drag-and-drop reordering/move-between-folders and multi-select
-            // bulk actions — real, separately-sized asks, not started.
+            // button's quick add/edit popover above. Flat (single-level)
+            // folders with search/sort/rename/delete, HTML (Netscape
+            // format, universal browser compatibility) and JSON
+            // (Himalayas-native backup) import/export, drag-a-bookmark-onto-
+            // a-folder-header to move it, and checkbox multi-select with
+            // bulk move/delete. Not built: true manual same-folder
+            // reordering (would need a "custom" sort mode plus a persisted
+            // per-bookmark order field, conflicting with the existing
+            // sort-by-name/date modes — a separate, real follow-up) and
+            // nested folder trees.
             if bookmark_manager_open() {
                 div {
                     style: "position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:50;display:flex;align-items:center;justify-content:center;",
@@ -2027,8 +2195,57 @@ fn app() -> Element {
                             }
                         }
 
+                        if !selected_bookmarks().is_empty() {
+                            div {
+                                style: "display:flex;align-items:center;gap:8px;padding:8px 18px;border-bottom:1px solid {border};background:{bg};",
+                                span { style: "font-size:12px;color:{text_muted};", {format!("{} selected", selected_bookmarks().len())} }
+                                span { style: "font-size:11px;color:{text_muted};", "Move to:" }
+                                div {
+                                    style: "display:flex;gap:4px;flex:1;flex-wrap:wrap;",
+                                    // Folder buttons directly (not a `<select>`) — matches the
+                                    // already-proven folder-picker pattern from the star
+                                    // popover's editor, rather than a native `<select>` this
+                                    // codebase hasn't otherwise exercised.
+                                    for folder in folders() {
+                                        {
+                                            let folder_click = folder.clone();
+                                            rsx! {
+                                                button {
+                                                    style: "padding:4px 8px;border-radius:6px;border:1px solid {border};background:transparent;color:{text_color};cursor:pointer;font-size:11px;",
+                                                    onclick: move |_| {
+                                                        let target = folder_click.clone();
+                                                        let selected = selected_bookmarks();
+                                                        for b in bookmarks.write().iter_mut() {
+                                                            if selected.contains(&b.url) { b.folder = target.clone(); }
+                                                        }
+                                                        selected_bookmarks.write().clear();
+                                                    },
+                                                    "{folder}"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                button {
+                                    style: "padding:5px 10px;border-radius:6px;border:1px solid {border};background:transparent;color:#e05555;cursor:pointer;font-size:12px;",
+                                    onclick: move |_| {
+                                        let selected = selected_bookmarks();
+                                        bookmarks.write().retain(|b| !selected.contains(&b.url));
+                                        selected_bookmarks.write().clear();
+                                    },
+                                    "Delete"
+                                }
+                                button {
+                                    style: "padding:5px 10px;border-radius:6px;border:none;background:transparent;color:{text_muted};cursor:pointer;font-size:12px;",
+                                    onclick: move |_| selected_bookmarks.write().clear(),
+                                    "Clear"
+                                }
+                            }
+                        }
+
                         div {
                             style: "flex:1;overflow:auto;padding:8px 18px 18px;",
+                            onmouseup: move |_| dragging_bookmark.set(None),
                             {
                                 let search = bookmark_manager_search().to_lowercase();
                                 let sort_by_date = bookmark_manager_sort_by_date();
@@ -2050,15 +2267,34 @@ fn app() -> Element {
                                             let folder_for_rename = folder.clone();
                                             let folder_for_rename_start = folder.clone();
                                             let folder_for_delete = folder.clone();
+                                            let folder_for_drop = folder.clone();
                                             let is_renaming = renaming_folder() == Some(folder.clone());
                                             let can_delete = folder_list.len() > 1;
                                             let item_count = items.len();
+                                            // Drop target: dragging a bookmark row and releasing over
+                                            // this folder's header moves it here — see `dragging_bookmark`
+                                            // and each row's `onmousedown` below. Highlighted only while
+                                            // a drag targeting a *different* folder is in progress, so it
+                                            // doesn't visually flicker when hovering the bookmark's own folder.
+                                            let drop_highlight = dragging_bookmark().is_some_and(|url| {
+                                                all.iter().find(|b| b.url == url).is_some_and(|b| b.folder != folder)
+                                            });
                                             rsx! {
                                                 div {
                                                     key: "{folder}",
                                                     style: "margin-bottom:16px;",
                                                     div {
-                                                        style: "display:flex;align-items:center;gap:8px;margin-bottom:6px;",
+                                                        style: format!("display:flex;align-items:center;gap:8px;margin-bottom:6px;padding:2px 4px;border-radius:6px;{}", if drop_highlight { format!("background:{accent};") } else { String::new() }),
+                                                        onmouseup: move |evt| {
+                                                            evt.stop_propagation();
+                                                            if let Some(url) = dragging_bookmark() {
+                                                                let target = folder_for_drop.clone();
+                                                                if let Some(b) = bookmarks.write().iter_mut().find(|b| b.url == url) {
+                                                                    b.folder = target;
+                                                                }
+                                                            }
+                                                            dragging_bookmark.set(None);
+                                                        },
                                                         if is_renaming {
                                                             input {
                                                                 style: "flex:1;padding:5px 8px;border:1px solid {border};border-radius:6px;background:{bg};color:{text_color};font-size:13px;",
@@ -2116,10 +2352,28 @@ fn app() -> Element {
                                                             let url_for_delete = b.url.clone();
                                                             let title_for_edit = b.title.clone();
                                                             let is_editing = bookmark_manager_editing_url() == Some(b.url.clone());
+                                                            let url_for_select = b.url.clone();
+                                                            let url_for_drag = b.url.clone();
+                                                            let is_selected = selected_bookmarks().contains(&b.url);
+                                                            let being_dragged = dragging_bookmark() == Some(b.url.clone());
                                                             rsx! {
                                                                 div {
                                                                     key: "{b.url}",
-                                                                    style: "display:flex;align-items:center;gap:8px;padding:6px 4px;border-radius:6px;",
+                                                                    style: format!("display:flex;align-items:center;gap:8px;padding:6px 4px;border-radius:6px;cursor:grab;{}", if being_dragged { "opacity:0.5;" } else { "" }),
+                                                                    onmousedown: move |_| dragging_bookmark.set(Some(url_for_drag.clone())),
+                                                                    input {
+                                                                        r#type: "checkbox",
+                                                                        checked: is_selected,
+                                                                        onclick: move |evt| {
+                                                                            evt.stop_propagation();
+                                                                            let mut sel = selected_bookmarks.write();
+                                                                            if sel.contains(&url_for_select) {
+                                                                                sel.remove(&url_for_select);
+                                                                            } else {
+                                                                                sel.insert(url_for_select.clone());
+                                                                            }
+                                                                        },
+                                                                    }
                                                                     if is_editing {
                                                                         input {
                                                                             style: "flex:1;padding:5px 8px;border:1px solid {border};border-radius:6px;background:{bg};color:{text_color};font-size:13px;",
@@ -2682,6 +2936,60 @@ mod tests {
         assert_eq!(result.new_folders, vec!["Travel".to_string()]);
     }
 
+    #[test]
+    fn pinned_tabs_session_state_includes_only_pinned_tabs() {
+        let mut pinned = Tab::new(200, "https://pinned.example", default_isolation_mode());
+        pinned.pinned = true;
+        pinned.title = "Pinned Site".to_string();
+        let unpinned = Tab::new(201, "https://unpinned.example", default_isolation_mode());
+
+        let state = pinned_tabs_session_state(&[pinned, unpinned], true);
+        assert!(state.restore_pinned_tabs);
+        assert_eq!(state.pinned_tabs.len(), 1);
+        assert_eq!(state.pinned_tabs[0].url, "https://pinned.example");
+        assert_eq!(state.pinned_tabs[0].title, "Pinned Site");
+    }
+
+    #[test]
+    fn session_state_round_trips_through_disk() {
+        let path = std::env::temp_dir().join(format!("himalayas-test-session-{}.json", std::process::id()));
+        let _ = std::fs::remove_file(&path);
+
+        let state = SessionState {
+            restore_pinned_tabs: true,
+            pinned_tabs: vec![PinnedTabRecord { url: "https://example.com".to_string(), title: "Example".to_string() }],
+        };
+        save_session_state_to(&path, &state);
+        let loaded = load_session_state_from(&path);
+        assert!(loaded.restore_pinned_tabs);
+        assert_eq!(loaded.pinned_tabs.len(), 1);
+        assert_eq!(loaded.pinned_tabs[0].url, "https://example.com");
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn session_state_defaults_to_restore_on_when_no_file_exists() {
+        let path = std::env::temp_dir().join(format!("himalayas-test-session-missing-{}.json", std::process::id()));
+        let _ = std::fs::remove_file(&path);
+
+        let loaded = load_session_state_from(&path);
+        assert!(loaded.restore_pinned_tabs);
+        assert!(loaded.pinned_tabs.is_empty());
+    }
+
+    #[test]
+    fn session_state_defaults_on_corrupt_file_instead_of_panicking() {
+        let path = std::env::temp_dir().join(format!("himalayas-test-session-corrupt-{}.json", std::process::id()));
+        std::fs::write(&path, "not valid json").unwrap();
+
+        let loaded = load_session_state_from(&path);
+        assert!(loaded.restore_pinned_tabs);
+        assert!(loaded.pinned_tabs.is_empty());
+
+        let _ = std::fs::remove_file(&path);
+    }
+
     /// Builds a `ScriptedDocument` directly rather than going through
     /// `build_scripted_document` — that function calls `consume_context`,
     /// which panics outside a live Dioxus scope (there isn't one in a plain
@@ -2865,6 +3173,95 @@ mod tests {
             let fetched = net_provider.fetched.lock().unwrap();
             assert!(fetched.iter().any(|u| u.ends_with("lazy.png")), "the lazy image should fetch once scrolled near it: {fetched:?}");
         }
+    }
+
+    /// Builds a document with a real `<picture>` — a `<source>` whose
+    /// `type` isn't a compiled-in codec (should be skipped), one whose
+    /// `media` doesn't match the test's 800px-wide viewport (should be
+    /// skipped), one that matches on both `type` and `media` (should win),
+    /// and a trailing fallback `<img>` (should be ignored, since a
+    /// `<source>` matched first) — checked against a `RecordingNetProvider`
+    /// so this observes the actual fetched URL, not `picture_source_for`'s
+    /// return value directly (which is private to blitz-dom).
+    fn picture_source_html(source_extra_attrs: &str) -> String {
+        format!(
+            r#"<html><body>
+                <picture>
+                    <source type="image/heic" srcset="unsupported-codec.heic">
+                    <source media="(min-width: 2000px)" srcset="too-wide.jpg">
+                    <source {source_extra_attrs} srcset="winner.jpg">
+                    <img src="fallback.jpg">
+                </picture>
+            </body></html>"#
+        )
+    }
+
+    #[test]
+    fn picture_source_wins_over_type_and_media_mismatches_and_the_fallback_img() {
+        reset_js_bindings();
+        let mut font_ctx = FontContext::default();
+        font_ctx
+            .collection
+            .register_fonts(linebender_resource_handle::Blob::new(Arc::new(blitz_dom::BULLET_FONT) as _), None);
+        let net_provider = Arc::new(RecordingNetProvider { fetched: std::sync::Mutex::new(Vec::new()) });
+        // Unlike `loading_lazy_defers_offscreen_images_until_scrolled_near`
+        // (which only cares about position, resolved later during
+        // `resolve()`), `<picture>`/`srcset` selection happens at *parse*
+        // time (`load_image`, triggered as soon as the `src` attribute is
+        // set while building the tree) — so the viewport has to be real
+        // *before* `HtmlDocument::from_html` runs, via `DocumentConfig`,
+        // not patched in afterward with `viewport_mut()`. Setting it only
+        // afterward is too late: by then the image has already loaded
+        // against the default (0,0) viewport, which both the picture-source
+        // and plain-srcset paths treat as "unknown, don't select — fall
+        // back to the plain src" (see `load_image`'s own doc comment).
+        let config = DocumentConfig {
+            base_url: Some("https://example.com/".parse().unwrap()),
+            net_provider: Some(net_provider.clone() as _),
+            html_parser_provider: Some(Arc::new(HtmlProvider)),
+            font_ctx: Some(font_ctx),
+            viewport: Some(blitz_traits::shell::Viewport::new(800, 600, 1.0, blitz_traits::shell::ColorScheme::Light)),
+            ..Default::default()
+        };
+        let html = picture_source_html(r#"type="image/webp" media="(max-width: 1000px)""#);
+        let mut base = HtmlDocument::from_html(&html, config).into_inner();
+
+        base.resolve(0.0);
+
+        let fetched = net_provider.fetched.lock().unwrap();
+        assert!(fetched.iter().any(|u| u.ends_with("winner.jpg")), "the matching source should be fetched: {fetched:?}");
+        assert!(!fetched.iter().any(|u| u.ends_with("too-wide.jpg")), "the media-mismatched source should be skipped: {fetched:?}");
+        assert!(!fetched.iter().any(|u| u.ends_with("unsupported-codec.heic")), "the unsupported-type source should be skipped: {fetched:?}");
+        assert!(!fetched.iter().any(|u| u.ends_with("fallback.jpg")), "the <img> fallback should be ignored once a <source> matched: {fetched:?}");
+    }
+
+    #[test]
+    fn picture_falls_back_to_img_when_no_source_matches() {
+        reset_js_bindings();
+        let mut font_ctx = FontContext::default();
+        font_ctx
+            .collection
+            .register_fonts(linebender_resource_handle::Blob::new(Arc::new(blitz_dom::BULLET_FONT) as _), None);
+        let net_provider = Arc::new(RecordingNetProvider { fetched: std::sync::Mutex::new(Vec::new()) });
+        let config = DocumentConfig {
+            base_url: Some("https://example.com/".parse().unwrap()),
+            net_provider: Some(net_provider.clone() as _),
+            html_parser_provider: Some(Arc::new(HtmlProvider)),
+            font_ctx: Some(font_ctx),
+            viewport: Some(blitz_traits::shell::Viewport::new(800, 600, 1.0, blitz_traits::shell::ColorScheme::Light)),
+            ..Default::default()
+        };
+        // Same as above but the third source *also* mismatches on media —
+        // nothing in the <picture> should match, so the trailing <img>'s
+        // own src is the real fallback per spec.
+        let html = picture_source_html(r#"type="image/webp" media="(min-width: 2000px)""#);
+        let mut base = HtmlDocument::from_html(&html, config).into_inner();
+
+        base.resolve(0.0);
+
+        let fetched = net_provider.fetched.lock().unwrap();
+        assert!(fetched.iter().any(|u| u.ends_with("fallback.jpg")), "should fall back to the <img>'s own src: {fetched:?}");
+        assert!(!fetched.iter().any(|u| u.ends_with("winner.jpg")), "the media-mismatched source should be skipped: {fetched:?}");
     }
 
     #[test]

@@ -1,6 +1,6 @@
 [package]
 name = "himalayas"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 authors = ["Georgi Mammen Mullassery <mullassery@gmail.com>"]
 description = "The world's first truly agent-native browser platform"
@@ -55,6 +55,10 @@ fxhash = "0.2"
 toml = "0.8"
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
 scraper = "0.20"
+# Cross-platform config dir for the (currently: pinned-tabs) desktop-shell
+# session file — same crate/major version blitz-net already pins in its
+# own, separate workspace for the HTTP cache directory.
+directories = "6.0.0"
 # Native save/open dialogs for bookmark import/export (desktop.rs) — same
 # version blitz-shell already pins in its own, separate Cargo workspace
 # (vendor/blitz/Cargo.toml), used here directly rather than plumbing a new

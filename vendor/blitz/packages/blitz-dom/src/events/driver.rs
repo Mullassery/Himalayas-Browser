@@ -271,7 +271,10 @@ impl<'doc, Handler: EventHandler> EventDriver<'doc, Handler> {
         if has_subdoc {
             if matches!(
                 event,
-                UiEvent::PointerDown(_) | UiEvent::PointerUp(_) | UiEvent::PointerMove(_) | UiEvent::PointerCancel(_)
+                UiEvent::PointerDown(_)
+                    | UiEvent::PointerUp(_)
+                    | UiEvent::PointerMove(_)
+                    | UiEvent::PointerCancel(_)
             ) {
                 let rect = self.doc.inner().get_client_bounding_rect(target);
                 if let Some(rect) = rect {
@@ -315,8 +318,10 @@ impl<'doc, Handler: EventHandler> EventDriver<'doc, Handler> {
                 }
                 return;
             }
-            if matches!(event, UiEvent::KeyDown(_) | UiEvent::KeyUp(_) | UiEvent::Ime(_))
-                && !is_reserved_browser_shortcut(&event)
+            if matches!(
+                event,
+                UiEvent::KeyDown(_) | UiEvent::KeyUp(_) | UiEvent::Ime(_)
+            ) && !is_reserved_browser_shortcut(&event)
             {
                 // No coordinate translation needed — keyboard/IME events are
                 // targeted by focus, not screen position. The sub-document's

@@ -267,7 +267,9 @@ impl BaseDocument {
             // consuming frames; don't stomp on it mid-flight.
             return;
         }
-        let Some(state) = &self.wheel_momentum else { return };
+        let Some(state) = &self.wheel_momentum else {
+            return;
+        };
         let Some(last) = state.samples.back() else {
             self.wheel_momentum = None;
             return;
