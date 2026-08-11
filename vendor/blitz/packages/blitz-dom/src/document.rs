@@ -204,6 +204,14 @@ pub struct BaseDocument {
     /// until they're near the viewport — see `check_lazy_images` (called
     /// from `resolve()`) and `DocumentMutator::load_image`'s gate.
     pub(crate) lazy_images: HashSet<NodeId>,
+    /// Playback clock for animated images (GIF today — see
+    /// `net::ImageHandler::decode_animated_gif`) — when each node's
+    /// current frame started showing, so `advance_animated_images`
+    /// (called from `resolve()`) knows when to move to the next one.
+    /// Populated in `apply_loaded_image` when an `ImageData::Animated`
+    /// loads; removed once the node itself is (see
+    /// `advance_animated_images`'s stale-node cleanup).
+    pub(crate) animated_images: HashMap<NodeId, Instant>,
     /// CSS media type used to evaluate `@media` rules.
     pub(crate) media_type: MediaType,
     /// Strategy for Stylo's style traversal during `resolve`.
@@ -467,6 +475,7 @@ impl BaseDocument {
             devtool_settings: DevtoolSettings::default(),
             viewport_scroll: crate::Point::ZERO,
             lazy_images: HashSet::new(),
+            animated_images: HashMap::new(),
             url: base_url,
             ua_stylesheets: HashMap::new(),
             nodes_to_stylesheet: BTreeMap::new(),
@@ -1267,6 +1276,32 @@ impl BaseDocument {
 
                 self.apply_loaded_image(url, image);
             }
+            Resource::AnimatedImage(_kind, animated) => {
+                let image = ImageData::Animated(animated);
+
+                let Some(url) = res.resolved_url.as_ref() else {
+                    return;
+                };
+
+                self.apply_loaded_image(url, image);
+            }
+            #[cfg(feature = "audio")]
+            Resource::Audio(bytes) => {
+                let Some(node_id) = res.node_id else { return };
+                let Some(node) = self.get_node_mut(node_id) else { return };
+                let Some(SpecialElementData::Audio(audio)) =
+                    node.element_data_mut().map(|el| &mut el.special_data)
+                else {
+                    // The node changed to something else (e.g. `src`
+                    // removed and re-added) between the fetch starting
+                    // and finishing — drop the now-stale response.
+                    return;
+                };
+                audio.src = res.resolved_url.clone();
+                if audio.autoplay {
+                    audio.player.play(bytes);
+                }
+            }
             #[cfg(feature = "svg")]
             Resource::Svg(_kind, svg) => {
                 // Create the ImageData and cache it
@@ -1358,6 +1393,15 @@ impl BaseDocument {
                     // Clear layout cache
                     node.cache_mut().clear();
                     node.insert_damage(ALL_DAMAGE);
+
+                    // Start (or restart, e.g. on `src` changing to a
+                    // different animated image) this node's playback
+                    // clock — see `animated_images`/`advance_animated_images`.
+                    if matches!(image, ImageData::Animated(_)) {
+                        self.animated_images.insert(node_id, Instant::now());
+                    } else {
+                        self.animated_images.remove(&node_id);
+                    }
                 }
                 ImageType::Background(idx) | ImageType::Mask(idx) => {
                     let layer_image = node.element_data_mut().and_then(|el| {
@@ -2007,6 +2051,12 @@ impl BaseDocument {
             // elapsed once real wheel events stop arriving.
             | self.wheel_momentum.is_some()
             | self.scrollbars_animating()
+            // Himalayas patch: keep resolving every frame while any
+            // animated image (GIF today) is playing — without this,
+            // nothing would schedule the next `resolve()` call needed to
+            // notice a frame's delay has elapsed. See
+            // `advance_animated_images`.
+            | !self.animated_images.is_empty()
     }
 
     /// Update the device and reset the stylist to process the new size
@@ -2391,6 +2441,63 @@ impl BaseDocument {
             if mutator.doc.nodes.get(node_id).is_some() {
                 mutator.load_image_now(node_id);
             }
+        }
+    }
+
+    /// Advance any animated images (`animated_images`) whose current frame
+    /// has been showing at least as long as its delay, looping back to
+    /// frame 0 after the last. Called every `resolve()`; a no-op the
+    /// instant `animated_images` is empty, same shape as
+    /// `check_lazy_images`. `is_animating()` includes
+    /// `!self.animated_images.is_empty()`, which is what actually keeps
+    /// the shell requesting another frame/calling `resolve()` again while
+    /// anything is playing — this method only decides *when within that
+    /// loop* a frame boundary was actually crossed.
+    pub(crate) fn advance_animated_images(&mut self) {
+        if self.animated_images.is_empty() {
+            return;
+        }
+
+        let now = Instant::now();
+        let mut stale = Vec::new();
+        for (&node_id, frame_started_at) in self.animated_images.iter_mut() {
+            let Some(node) = self.nodes.get_mut(node_id) else {
+                stale.push(node_id);
+                continue;
+            };
+            // Cloning is cheap (an `Arc` bump for `frames`/`current_frame`,
+            // not a pixel copy) and sidesteps holding a borrow of `node`
+            // across the `insert_damage` call below.
+            let animated = node
+                .element_data()
+                .and_then(|el| el.image_data())
+                .and_then(|d| match d {
+                    ImageData::Animated(a) => Some(a.clone()),
+                    _ => None,
+                });
+            let Some(animated) = animated else {
+                // No longer an animated image on this node (e.g. `src`
+                // changed to something static) — stop tracking it.
+                stale.push(node_id);
+                continue;
+            };
+
+            let current_idx = animated.current_frame.load(Ordering::Relaxed);
+            let Some(current_frame) = animated.frames.get(current_idx) else {
+                stale.push(node_id);
+                continue;
+            };
+
+            if now.duration_since(*frame_started_at) >= current_frame.delay {
+                let next_idx = (current_idx + 1) % animated.frames.len();
+                animated.current_frame.store(next_idx, Ordering::Relaxed);
+                *frame_started_at = now;
+                node.insert_damage(ALL_DAMAGE);
+            }
+        }
+
+        for node_id in stale {
+            self.animated_images.remove(&node_id);
         }
     }
 
@@ -3181,5 +3288,223 @@ mod font_face_override_tests {
             "registered family should report the CSS-declared name, \
              not the font file's internal `name` table entry",
         );
+    }
+}
+
+#[cfg(test)]
+mod animated_image_tests {
+    use super::*;
+    use crate::net::{Resource, ResourceLoadResponse};
+    use crate::node::{AnimatedFrame, AnimatedImageData};
+    use crate::util::ImageType;
+    use std::sync::atomic::AtomicUsize;
+    use std::time::Duration as StdDuration;
+
+    fn frame(delay_ms: u64) -> AnimatedFrame {
+        AnimatedFrame {
+            data: Blob::new(Arc::new(vec![0u8, 0, 0, 255])),
+            delay: StdDuration::from_millis(delay_ms),
+        }
+    }
+
+    /// `document.load_resource` drives the same pipeline a real fetch does
+    /// (`load_resource` → `Resource::AnimatedImage` → `apply_loaded_image`
+    /// → `animated_images.insert`) without going through blitz-html/
+    /// blitz-net, same pattern `font_face_override_tests` above already
+    /// established for exactly this reason. `pending_images` has to be
+    /// populated first — `apply_loaded_image` looks nodes up through it,
+    /// mirroring what a real in-flight fetch (`load_image_now`) already
+    /// does before the network response arrives.
+    fn make_doc_with_animated_image(frames: Vec<AnimatedFrame>) -> (BaseDocument, NodeId) {
+        let mut document = BaseDocument::new(DocumentConfig::default());
+        let mut mutator = document.mutate();
+        let img_id = mutator.create_element(crate::qual_name!("img"), vec![]);
+        drop(mutator);
+
+        let url = "test://animated.gif";
+        document.pending_images.insert(url.to_string(), vec![(img_id, ImageType::Image)]);
+        document.load_resource(ResourceLoadResponse {
+            request_id: 0,
+            node_id: Some(img_id),
+            resolved_url: Some(url.to_string()),
+            result: Ok(Resource::AnimatedImage(
+                ImageType::Image,
+                AnimatedImageData {
+                    width: 1,
+                    height: 1,
+                    frames: Arc::new(frames),
+                    current_frame: Arc::new(AtomicUsize::new(0)),
+                },
+            )),
+        });
+
+        (document, img_id)
+    }
+
+    #[test]
+    fn loading_an_animated_image_registers_it_for_playback() {
+        let (document, img_id) = make_doc_with_animated_image(vec![frame(100), frame(100)]);
+        assert!(document.animated_images.contains_key(&img_id));
+        assert!(document.is_animating(), "a playing animated image should keep the shell requesting frames");
+    }
+
+    #[test]
+    fn advance_does_not_move_the_frame_before_the_delay_elapses() {
+        let (mut document, img_id) = make_doc_with_animated_image(vec![frame(10_000), frame(10_000)]);
+        document.advance_animated_images();
+
+        let node = &document.nodes[img_id];
+        let ImageData::Animated(animated) = node.element_data().unwrap().image_data().unwrap() else {
+            panic!("expected an animated image");
+        };
+        assert_eq!(animated.current_frame.load(Ordering::Relaxed), 0);
+    }
+
+    #[test]
+    fn advance_moves_to_the_next_frame_once_the_delay_elapses_and_loops() {
+        let (mut document, img_id) = make_doc_with_animated_image(vec![frame(0), frame(0), frame(0)]);
+        // `frame(0)`'s delay is floored to 100ms by the real GIF decoder
+        // (`ImageHandler::decode_animated_gif`), but nothing floors a
+        // fabricated `AnimatedFrame` built directly in a test — a real
+        // zero delay here means "already elapsed" the instant the clock
+        // starts, which is exactly what this test wants: advance on the
+        // very next call without needing to sleep.
+        document.animated_images.insert(img_id, Instant::now() - StdDuration::from_millis(1));
+
+        document.advance_animated_images();
+        let current = |doc: &BaseDocument| {
+            let ImageData::Animated(animated) = doc.nodes[img_id].element_data().unwrap().image_data().unwrap() else {
+                panic!("expected an animated image");
+            };
+            animated.current_frame.load(Ordering::Relaxed)
+        };
+        assert_eq!(current(&document), 1);
+
+        document.animated_images.insert(img_id, Instant::now() - StdDuration::from_millis(1));
+        document.advance_animated_images();
+        assert_eq!(current(&document), 2);
+
+        // Loops back to 0 after the last frame.
+        document.animated_images.insert(img_id, Instant::now() - StdDuration::from_millis(1));
+        document.advance_animated_images();
+        assert_eq!(current(&document), 0);
+    }
+
+    #[test]
+    fn advance_removes_a_node_that_no_longer_exists() {
+        let (mut document, img_id) = make_doc_with_animated_image(vec![frame(0), frame(0)]);
+        document.animated_images.insert(img_id, Instant::now() - StdDuration::from_millis(1));
+        // No real node-removal API exercised here — directly simulating
+        // "the node is gone" (e.g. removed from the DOM) via a bogus id
+        // covers `advance_animated_images`'s stale-entry cleanup without
+        // needing a full remove-node round trip.
+        document.animated_images.remove(&img_id);
+        let bogus_id = NodeId::from_u64(999_999);
+        document.animated_images.insert(bogus_id, Instant::now() - StdDuration::from_millis(1));
+
+        document.advance_animated_images();
+        assert!(!document.animated_images.contains_key(&bogus_id));
+    }
+}
+
+#[cfg(all(test, feature = "audio"))]
+mod audio_resource_tests {
+    use super::*;
+    use crate::net::{Resource, ResourceLoadResponse};
+    use crate::node::{AudioElementData, SpecialElementData};
+
+    /// Same `document.load_resource(fabricated_response)` pattern
+    /// `font_face_override_tests`/`animated_image_tests` above already
+    /// established — drives the resource-application side of the
+    /// `<audio>` pipeline (`Resource::Audio` → autoplay trigger) directly,
+    /// without needing blitz-html (HTML parsing) or a real network fetch.
+    /// `SpecialElementData::Audio` is set up by hand here rather than via
+    /// `DocumentMutator::load_audio` (the real tag-detection/fetch-
+    /// starting half, in `mutator.rs`) — same scope split those other two
+    /// test modules already use.
+    fn make_doc_with_audio_node(autoplay: bool) -> (BaseDocument, NodeId) {
+        let mut document = BaseDocument::new(DocumentConfig::default());
+        let mut mutator = document.mutate();
+        let audio_id = mutator.create_element(crate::qual_name!("audio"), vec![]);
+        drop(mutator);
+
+        document.nodes[audio_id].element_data_mut().unwrap().special_data =
+            SpecialElementData::Audio(AudioElementData {
+                src: None,
+                autoplay,
+                player: Arc::new(crate::audio::AudioPlayer::default()),
+            });
+
+        (document, audio_id)
+    }
+
+    fn is_audio_playing(document: &BaseDocument, audio_id: NodeId) -> bool {
+        let SpecialElementData::Audio(audio) = &document.nodes[audio_id].element_data().unwrap().special_data
+        else {
+            panic!("expected an audio element");
+        };
+        audio.player.is_playing()
+    }
+
+    /// Real WAV bytes, not a placeholder — same minimal hand-built format
+    /// `audio::tests::make_test_wav` uses, duplicated here rather than
+    /// exposed as a shared `pub(crate)` helper across modules for one
+    /// caller each.
+    fn test_wav_bytes() -> Arc<Vec<u8>> {
+        let samples: Vec<i16> = (0..1600).map(|i| ((i % 100) as i16) * 100).collect();
+        let data_len = (samples.len() * 2) as u32;
+        let mut wav = Vec::with_capacity(44 + data_len as usize);
+        wav.extend_from_slice(b"RIFF");
+        wav.extend_from_slice(&(36 + data_len).to_le_bytes());
+        wav.extend_from_slice(b"WAVEfmt ");
+        wav.extend_from_slice(&16u32.to_le_bytes());
+        wav.extend_from_slice(&1u16.to_le_bytes());
+        wav.extend_from_slice(&1u16.to_le_bytes());
+        wav.extend_from_slice(&8_000u32.to_le_bytes());
+        wav.extend_from_slice(&16_000u32.to_le_bytes());
+        wav.extend_from_slice(&2u16.to_le_bytes());
+        wav.extend_from_slice(&16u16.to_le_bytes());
+        wav.extend_from_slice(b"data");
+        wav.extend_from_slice(&data_len.to_le_bytes());
+        for s in samples {
+            wav.extend_from_slice(&s.to_le_bytes());
+        }
+        Arc::new(wav)
+    }
+
+    #[test]
+    fn loading_audio_without_autoplay_records_the_src_but_does_not_play() {
+        let (mut document, audio_id) = make_doc_with_audio_node(false);
+        document.load_resource(ResourceLoadResponse {
+            request_id: 0,
+            node_id: Some(audio_id),
+            resolved_url: Some("test://sound.wav".to_string()),
+            result: Ok(Resource::Audio(test_wav_bytes())),
+        });
+
+        let SpecialElementData::Audio(audio) =
+            &document.nodes[audio_id].element_data().unwrap().special_data
+        else {
+            panic!("expected an audio element");
+        };
+        assert_eq!(audio.src.as_deref(), Some("test://sound.wav"));
+        assert!(!is_audio_playing(&document, audio_id));
+    }
+
+    #[test]
+    fn loading_audio_with_autoplay_starts_playback_when_a_device_is_available() {
+        let (mut document, audio_id) = make_doc_with_audio_node(true);
+        document.load_resource(ResourceLoadResponse {
+            request_id: 0,
+            node_id: Some(audio_id),
+            resolved_url: Some("test://sound.wav".to_string()),
+            result: Ok(Resource::Audio(test_wav_bytes())),
+        });
+
+        if crate::audio::output_stream_handle_for_tests().is_none() {
+            eprintln!("skipping playing assertion: no audio output device available");
+            return;
+        }
+        assert!(is_audio_playing(&document, audio_id));
     }
 }

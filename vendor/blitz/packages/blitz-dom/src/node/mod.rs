@@ -16,10 +16,12 @@ pub use custom_widget::{
 };
 #[cfg(feature = "svg")]
 pub use element::SvgImageData;
+#[cfg(feature = "audio")]
+pub use element::AudioElementData;
 pub use element::{
-    CanvasData, DocumentData, ElementData, ImageData, ImageResourceData, ListItemLayout,
-    ListItemLayoutPosition, Marker, RasterImageData, SpecialElementData, SpecialElementType,
-    Status,
+    AnimatedFrame, AnimatedImageData, CanvasData, DocumentData, ElementData, ImageData,
+    ImageResourceData, ListItemLayout, ListItemLayoutPosition, Marker, RasterImageData,
+    SpecialElementData, SpecialElementType, Status,
 };
 pub use node::*;
 pub use scrollbar::{ScrollbarColor, ScrollbarRef, ScrollbarWidth};

@@ -140,6 +140,11 @@ http-cache = { version = "=1.0.0-alpha.6", default-features = false }
 # with none of these enabled, no raster image on any page ever rendered.
 # See docs/NATIVE_RENDERING_PLAN.md.
 image = { version = "0.25.6", default-features = false, features = ["png", "jpeg", "gif", "webp", "bmp", "avif", "ico"] }
+# `<audio>` decode+playback (blitz-dom's `audio` feature, off by default —
+# see that Cargo.toml). rodio's own symphonia-backed decoders cover the
+# "core priority" formats: MP3, AAC, WAV/PCM, Vorbis/OGG, FLAC. Opus isn't
+# in symphonia's built-in codec set, so it's a real, separate follow-up.
+rodio = { version = "0.20", default-features = false, features = ["symphonia-mp3", "symphonia-wav", "symphonia-vorbis", "symphonia-flac", "symphonia-aac", "symphonia-isomp4"] }
 wuff = "0.2"
 html-escape = "0.2.13"
 percent-encoding = "2.3.1"

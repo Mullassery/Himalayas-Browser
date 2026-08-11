@@ -1,6 +1,6 @@
 [package]
 name = "himalayas"
-version = "0.4.0"
+version = "0.5.0"
 edition = "2021"
 authors = ["Georgi Mammen Mullassery <mullassery@gmail.com>"]
 description = "The world's first truly agent-native browser platform"
@@ -140,6 +140,7 @@ js_engine = [
     "dep:blitz-html",
     "dep:blitz-net",
     "blitz-net/cache",
+    "blitz-dom/audio",
     "dep:blitz-traits",
     "dep:linebender_resource_handle",
     "dep:boa_engine",

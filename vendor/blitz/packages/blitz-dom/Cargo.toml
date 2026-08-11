@@ -36,6 +36,11 @@ file-input = []
 scrollbars = []
 parallel-construct = []
 log-phase-times = ["debug_timer/enable"]
+# Real `<audio>` decode+playback (rodio, symphonia-backed). Off by
+# default, matching how blitz-net's `cache` feature is opt-in too — a
+# genuinely new dependency tree (real OS audio device access), not a
+# footprint-neutral extension of something already pulled in.
+audio = ["dep:rodio"]
 
 [dependencies]
 # Blitz dependencies
@@ -77,6 +82,7 @@ rayon = { workspace = true }
 
 # Media & Decoding
 image = { workspace = true }
+rodio = { workspace = true, optional = true }
 usvg = { workspace = true, optional = true }
 wuff = { workspace = true, optional = true }
 html-escape = { workspace = true }

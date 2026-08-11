@@ -297,6 +297,9 @@ pub enum SpecialElementData {
     Stylesheet(DocumentStyleSheet),
     /// An \<img\> element's image data
     Image(Box<ImageData>),
+    /// An \<audio\> element's playback state — see `crate::audio`.
+    #[cfg(feature = "audio")]
+    Audio(AudioElementData),
     /// A \<canvas\> element's custom paint source
     Canvas(CanvasData),
     /// Pre-computed table layout data
@@ -321,6 +324,8 @@ impl Clone for SpecialElementData {
             Self::CustomWidget(_) => Self::None, // TODO
             Self::Stylesheet(data) => Self::Stylesheet(data.clone()),
             Self::Image(data) => Self::Image(data.clone()),
+            #[cfg(feature = "audio")]
+            Self::Audio(data) => Self::Audio(data.clone()),
             Self::Canvas(data) => Self::Canvas(data.clone()),
             Self::TableRoot(data) => Self::TableRoot(data.clone()),
             Self::TextInput(data) => Self::TextInput(data.clone()),
@@ -429,9 +434,27 @@ impl ElementData {
         }
     }
 
-    pub fn raster_image_data(&self) -> Option<&RasterImageData> {
+    /// `Cow` rather than `&RasterImageData`: an animated image's current
+    /// frame has to be assembled on the fly (there's no standing
+    /// `RasterImageData` for it to borrow — see `ImageData::Animated`),
+    /// while a plain `Raster` image can still be borrowed directly with
+    /// no cost. `Blob::clone()` is an `Arc` bump, not a pixel copy, so the
+    /// `Owned` case is still cheap per paint call.
+    pub fn raster_image_data(&self) -> Option<std::borrow::Cow<'_, RasterImageData>> {
         match self.image_data()? {
-            ImageData::Raster(data) => Some(data),
+            ImageData::Raster(data) => Some(std::borrow::Cow::Borrowed(data)),
+            ImageData::Animated(data) => {
+                let idx = data
+                    .current_frame
+                    .load(std::sync::atomic::Ordering::Relaxed)
+                    .min(data.frames.len().saturating_sub(1));
+                let frame = data.frames.get(idx)?;
+                Some(std::borrow::Cow::Owned(RasterImageData {
+                    width: data.width,
+                    height: data.height,
+                    data: frame.data.clone(),
+                }))
+            }
             _ => None,
         }
     }
@@ -723,6 +746,66 @@ impl RasterImageData {
     }
 }
 
+/// One decoded frame of an animated image (GIF today — animated WebP/APNG
+/// are real, separate follow-ups, not built yet; see
+/// `crate::net::ImageHandler::decode_animated_gif`'s doc comment).
+#[derive(Debug, Clone, PartialEq)]
+pub struct AnimatedFrame {
+    /// RGBA8, same layout `RasterImageData::data` uses — full frame
+    /// buffers, not deltas: the `image` crate's `AnimationDecoder`
+    /// already composites GIF disposal/blending per-frame, so there's no
+    /// partial-frame decode logic to reproduce here.
+    pub data: Blob<u8>,
+    /// How long this frame stays on screen before advancing to the next
+    /// one (looping back to frame 0 after the last). A GIF's own encoded
+    /// delay, floored — see that doc comment for why.
+    pub delay: std::time::Duration,
+}
+
+/// An `<audio>` element's playback state. `player` is `Arc`-wrapped (not
+/// owned directly) purely so `SpecialElementData::clone()` — which the
+/// existing `Clone for SpecialElementData` impl needs for every variant —
+/// shares the same live `AudioPlayer`/`Sink` rather than accidentally
+/// forking playback state on a clone.
+#[cfg(feature = "audio")]
+#[derive(Debug, Clone)]
+pub struct AudioElementData {
+    /// The resolved `src` URL, once fetched — `None` while still loading
+    /// or if `src` is missing/empty.
+    pub src: Option<String>,
+    pub autoplay: bool,
+    pub player: Arc<crate::audio::AudioPlayer>,
+}
+
+#[cfg(feature = "audio")]
+impl Default for AudioElementData {
+    fn default() -> Self {
+        Self { src: None, autoplay: false, player: Arc::new(crate::audio::AudioPlayer::default()) }
+    }
+}
+
+/// A decoded multi-frame animated image. `BaseDocument`'s per-node
+/// animation clock (`advance_animated_images`, `document.rs`) decides
+/// *when* to advance (elapsed time vs. the current frame's delay, tracked
+/// separately per-node since the same decoded image could in principle be
+/// shared/cached across multiple `<img>` elements showing different
+/// frames); `current_frame` here is *which* frame is currently displayed,
+/// stored on the data itself (rather than needing paint code to thread a
+/// document-level lookup through) so `ElementData::raster_image_data`
+/// (blitz-paint's actual read path) can resolve it with only `&self`.
+/// `AtomicUsize`, not `Cell`, specifically to keep this `Sync` — `Node`s
+/// need to stay shareable across threads for `parallel-construct`'s rayon
+/// traversal even though nothing currently mutates this concurrently in
+/// practice (`advance_animated_images` has exclusive `&mut BaseDocument`
+/// access when it writes this).
+#[derive(Debug, Clone)]
+pub struct AnimatedImageData {
+    pub width: u32,
+    pub height: u32,
+    pub frames: Arc<Vec<AnimatedFrame>>,
+    pub current_frame: Arc<std::sync::atomic::AtomicUsize>,
+}
+
 /// A parsed SVG image.
 ///
 /// usvg always resolves the root `<svg>` to a concrete [`usvg::Tree::size`],
@@ -844,6 +927,7 @@ impl SvgImageData {
 #[derive(Debug, Clone)]
 pub enum ImageData {
     Raster(RasterImageData),
+    Animated(AnimatedImageData),
     #[cfg(feature = "svg")]
     Svg(SvgImageData),
     None,
@@ -890,10 +974,13 @@ impl std::fmt::Debug for SpecialElementData {
             SpecialElementData::Stylesheet(_) => f.write_str("NodeSpecificData::Stylesheet"),
             SpecialElementData::Image(data) => match **data {
                 ImageData::Raster(_) => f.write_str("NodeSpecificData::Image(Raster)"),
+                ImageData::Animated(_) => f.write_str("NodeSpecificData::Image(Animated)"),
                 #[cfg(feature = "svg")]
                 ImageData::Svg(_) => f.write_str("NodeSpecificData::Image(Svg)"),
                 ImageData::None => f.write_str("NodeSpecificData::Image(None)"),
             },
+            #[cfg(feature = "audio")]
+            SpecialElementData::Audio(_) => f.write_str("NodeSpecificData::Audio"),
             SpecialElementData::Canvas(_) => f.write_str("NodeSpecificData::Canvas"),
             SpecialElementData::TableRoot(_) => f.write_str("NodeSpecificData::TableRoot"),
             SpecialElementData::TextInput(_) => f.write_str("NodeSpecificData::TextInput"),

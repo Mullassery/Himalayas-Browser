@@ -1,4 +1,5 @@
 use blitz_traits::node_id::NodeId;
+use linebender_resource_handle::Blob;
 use selectors::context::QuirksMode;
 use std::sync::atomic::Ordering as Ao;
 use std::{
@@ -57,8 +58,23 @@ pub struct FontFaceOverrides {
 #[derive(Clone, Debug)]
 pub enum Resource {
     Image(ImageType, u32, u32, Arc<Vec<u8>>),
+    /// A decoded multi-frame animated image (GIF today — see
+    /// `ImageHandler::decode_animated_gif`'s doc comment for why not
+    /// WebP/APNG yet). Kept as a separate variant rather than widening
+    /// `Image` with an optional frame list, so every existing `Image`
+    /// call site (which assumes exactly one RGBA buffer) doesn't need to
+    /// change at all.
+    AnimatedImage(ImageType, crate::node::AnimatedImageData),
     #[cfg(feature = "svg")]
     Svg(ImageType, crate::node::SvgImageData),
+    /// Raw bytes fetched for an `<audio>` element's `src` — unlike
+    /// `Image`, no decode happens at fetch time; `rodio::Decoder` decodes
+    /// lazily when `AudioPlayer::play` actually starts playback (real
+    /// audio decode is comparatively cheap and streamable, so there's no
+    /// equivalent motivation to decode-then-cache pixel data the way
+    /// images have).
+    #[cfg(feature = "audio")]
+    Audio(Arc<Vec<u8>>),
     Css(DocumentStyleSheet),
     Font(Bytes, FontFaceOverrides),
     /// HTML fetched for an `<iframe>` element's `src`
@@ -514,6 +530,18 @@ impl NetHandler for ResourceHandler<DocumentSrcHandler> {
     }
 }
 
+/// Fetched for an `<audio>` element's `src` — see `Resource::Audio`'s doc
+/// comment for why this is a plain pass-through, unlike `ImageHandler`.
+#[cfg(feature = "audio")]
+pub(crate) struct AudioBytesHandler;
+
+#[cfg(feature = "audio")]
+impl NetHandler for ResourceHandler<AudioBytesHandler> {
+    fn bytes(self: Box<Self>, resolved_url: String, bytes: Bytes) {
+        self.respond(resolved_url, Ok(Resource::Audio(Arc::new(bytes.to_vec()))));
+    }
+}
+
 pub struct ImageHandler {
     kind: ImageType,
 }
@@ -532,6 +560,18 @@ impl NetHandler for ResourceHandler<ImageHandler> {
 
 impl ImageHandler {
     fn parse(&self, bytes: Bytes) -> Result<Resource, String> {
+        // Animated GIF: checked first via a cheap format sniff (no
+        // decode), so this only ever attempts the animated path for
+        // actual GIFs — every other format falls straight through to the
+        // unchanged static-image path below. A single-frame GIF (or one
+        // whose animated decode fails for some reason) also falls
+        // through, so this can't make GIF handling *worse* than before.
+        if matches!(image::guess_format(&bytes), Ok(image::ImageFormat::Gif))
+            && let Some(animated) = Self::decode_animated_gif(&bytes)
+        {
+            return Ok(Resource::AnimatedImage(self.kind, animated));
+        }
+
         let image_err = match image::ImageReader::new(Cursor::new(&bytes))
             .with_guessed_format()
             .expect("IO errors impossible with Cursor")
@@ -564,6 +604,58 @@ impl ImageHandler {
             "Could not parse image ({} bytes): image-crate error: {image_err}; svg fallback error: {svg_err}",
             bytes.len()
         ))
+    }
+
+    /// Real, standards-track animated-image support — the `image` crate's
+    /// own `AnimationDecoder`, not a bespoke decoder. Animated WebP/APNG
+    /// (which the `image` crate can also decode, via `WebPDecoder`'s own
+    /// `AnimationDecoder` impl and `PngDecoder::apng()` respectively)
+    /// aren't wired in yet — a real, scoped widening to do once a site
+    /// actually needs one, same growth pattern already used for the
+    /// lazy-load data-attribute allowlist (`mutator.rs`) — starting with
+    /// GIF since it's both the most common real-world animated format and
+    /// the case this was actually built against.
+    ///
+    /// `None` (not an `Err`) whenever the animated path doesn't apply —
+    /// decode failure, or a "GIF" that turns out to have only one frame
+    /// (common: many single-frame images are still saved as GIF) — so the
+    /// caller can fall through to the ordinary static-image decode rather
+    /// than surfacing a spurious error for something that isn't actually
+    /// broken.
+    fn decode_animated_gif(bytes: &Bytes) -> Option<crate::node::AnimatedImageData> {
+        use image::AnimationDecoder;
+
+        let decoder = image::codecs::gif::GifDecoder::new(Cursor::new(bytes.as_ref())).ok()?;
+        let mut width = 0u32;
+        let mut height = 0u32;
+        let mut frames = Vec::new();
+        for frame in decoder.into_frames() {
+            let frame = frame.ok()?;
+            let delay: std::time::Duration = frame.delay().into();
+            let buffer = frame.buffer();
+            width = buffer.width();
+            height = buffer.height();
+            frames.push(crate::node::AnimatedFrame {
+                data: Blob::new(Arc::new(buffer.clone().into_raw())),
+                // Real browsers/GIF players floor a frame's delay at
+                // ~100ms (10fps) — many encoders write a 0 (or very
+                // small) delay expecting exactly this convention;
+                // without the floor, such a GIF would spin as fast as
+                // the CPU allows instead of animating at a sane rate.
+                delay: delay.max(std::time::Duration::from_millis(100)),
+            });
+        }
+
+        if frames.len() <= 1 {
+            return None;
+        }
+
+        Some(crate::node::AnimatedImageData {
+            width,
+            height,
+            frames: Arc::new(frames),
+            current_frame: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
+        })
     }
 }
 
@@ -606,5 +698,74 @@ mod tests {
             stylo_to_fontique_style(&oblique(10.0, 20.0)),
             Fq::Oblique(Some(10.0)),
         );
+    }
+
+    /// Encodes a real multi-frame GIF in memory (via the `image` crate's
+    /// own `GifEncoder` — no binary test fixture to keep around) with 3
+    /// solid-color 2x2 frames at distinct delays, so
+    /// `decode_animated_gif`'s output can be checked against known values
+    /// rather than just "it didn't panic."
+    fn encode_test_gif(delays_ms: &[u32]) -> Bytes {
+        use image::{Rgba, RgbaImage};
+        use image::codecs::gif::GifEncoder;
+        use image::{Delay, Frame};
+
+        let mut bytes = Vec::new();
+        {
+            let mut encoder = GifEncoder::new(&mut bytes);
+            for (i, &delay_ms) in delays_ms.iter().enumerate() {
+                // A different solid color per frame so a decoded frame's
+                // pixel data can be checked against which frame it is.
+                let color = Rgba([(i as u8 + 1) * 50, 0, 0, 255]);
+                let img = RgbaImage::from_pixel(2, 2, color);
+                let frame = Frame::from_parts(img, 0, 0, Delay::from_numer_denom_ms(delay_ms, 1));
+                encoder.encode_frame(frame).unwrap();
+            }
+        }
+        Bytes::from(bytes)
+    }
+
+    #[test]
+    fn decode_animated_gif_reads_all_frames_with_their_delays() {
+        let bytes = encode_test_gif(&[100, 250, 400]);
+        let animated = ImageHandler::decode_animated_gif(&bytes).expect("should decode as animated");
+
+        assert_eq!(animated.width, 2);
+        assert_eq!(animated.height, 2);
+        assert_eq!(animated.frames.len(), 3);
+        assert_eq!(animated.frames[0].delay, std::time::Duration::from_millis(100));
+        assert_eq!(animated.frames[1].delay, std::time::Duration::from_millis(250));
+        assert_eq!(animated.frames[2].delay, std::time::Duration::from_millis(400));
+
+        // Frame 0's color: Rgba([50, 0, 0, 255]) repeated over a 2x2 image.
+        assert_eq!(&animated.frames[0].data.data()[0..4], &[50, 0, 0, 255]);
+        // Frame 1's color: Rgba([100, 0, 0, 255]).
+        assert_eq!(&animated.frames[1].data.data()[0..4], &[100, 0, 0, 255]);
+    }
+
+    #[test]
+    fn decode_animated_gif_floors_a_zero_delay_to_100ms() {
+        // Many real GIF encoders write a 0 (or near-0) delay expecting
+        // players to floor it to a sane rate — see the doc comment on
+        // `AnimatedFrame::delay`.
+        let bytes = encode_test_gif(&[0, 5, 400]);
+        let animated = ImageHandler::decode_animated_gif(&bytes).unwrap();
+        assert_eq!(animated.frames[0].delay, std::time::Duration::from_millis(100));
+        assert_eq!(animated.frames[1].delay, std::time::Duration::from_millis(100));
+        assert_eq!(animated.frames[2].delay, std::time::Duration::from_millis(400));
+    }
+
+    #[test]
+    fn decode_animated_gif_returns_none_for_a_single_frame_gif() {
+        // A single-frame GIF should fall through to the ordinary static
+        // decode path in `ImageHandler::parse`, not be treated as
+        // "animated with one frame."
+        let bytes = encode_test_gif(&[100]);
+        assert!(ImageHandler::decode_animated_gif(&bytes).is_none());
+    }
+
+    #[test]
+    fn decode_animated_gif_returns_none_for_a_non_gif() {
+        assert!(ImageHandler::decode_animated_gif(&Bytes::from_static(b"not a gif")).is_none());
     }
 }

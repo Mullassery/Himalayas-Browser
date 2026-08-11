@@ -73,6 +73,9 @@ pub mod util;
 #[cfg(feature = "accessibility")]
 mod accessibility;
 
+#[cfg(feature = "audio")]
+pub mod audio;
+
 #[cfg(feature = "custom-widget")]
 pub use crate::node::Widget;
 

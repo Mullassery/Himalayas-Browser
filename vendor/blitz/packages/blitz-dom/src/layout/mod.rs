@@ -199,6 +199,18 @@ impl BaseDocument {
                                 };
                                 (size, Some(size.width / size.height))
                             }
+                            ImageData::Animated(image) => {
+                                // Every frame of a decoded animation shares
+                                // one width/height (the `image` crate's
+                                // `AnimationDecoder` already normalizes GIF
+                                // frames to the logical screen size) — same
+                                // intrinsic-size shape as `Raster` above.
+                                let size = taffy::Size {
+                                    width: image.width as f32,
+                                    height: image.height as f32,
+                                };
+                                (size, Some(size.width / size.height))
+                            }
                             #[cfg(feature = "svg")]
                             ImageData::Svg(svg) => {
                                 // For an inline `<svg>` element the width/height attributes are

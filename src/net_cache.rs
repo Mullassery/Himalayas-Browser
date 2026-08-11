@@ -32,9 +32,36 @@ use http_cache_reqwest::{CACacheManager, Cache, CacheMode, CacheOptions, HttpCac
 use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
 
 fn http_cache_dir() -> std::path::PathBuf {
-    directories::ProjectDirs::from("com", "Himalayas", "Himalayas")
-        .map(|dirs| dirs.cache_dir().join("http"))
-        .unwrap_or_else(|| std::env::temp_dir().join("himalayas-http-cache"))
+    // Test builds get a fresh, unique-per-call directory instead of the
+    // real shared one — a real regression this fixed, not defensive
+    // paranoia: tests spin up many rapid, short-lived local mock HTTP
+    // servers (`mockito`) on OS-assigned ephemeral ports, which *can* get
+    // reused across otherwise-unrelated test server instances within the
+    // real cache's heuristic-freshness window for a response with no
+    // explicit `Cache-Control` header. Sharing the real cache directory
+    // meant one test's response could get served back for a *different*
+    // test's identical `http://127.0.0.1:<reused-port>/` a moment later —
+    // `server::tests::test_agent_endpoint_navigate_query_get_text_full_flow`
+    // failed exactly this way (asserted title "Test Page", got the
+    // previous test's "Untitled" instead) once enough tests ran
+    // concurrently to make the port-reuse window realistic. Each call
+    // still returns the *same* directory for the lifetime of the
+    // `ClientWithMiddleware` it's baked into (`cached_client` calls this
+    // once per `Navigator`), so within-test caching behavior (e.g.
+    // `test_navigate_does_not_refetch_a_cacheable_url`) is unaffected —
+    // only *cross*-test sharing is what this removes.
+    #[cfg(test)]
+    {
+        static COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        let n = COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        std::env::temp_dir().join(format!("himalayas-http-cache-test-{}-{n}", std::process::id()))
+    }
+    #[cfg(not(test))]
+    {
+        directories::ProjectDirs::from("com", "Himalayas", "Himalayas")
+            .map(|dirs| dirs.cache_dir().join("http"))
+            .unwrap_or_else(|| std::env::temp_dir().join("himalayas-http-cache"))
+    }
 }
 
 /// Wrap an already-configured base client (timeouts, user-agent, redirect

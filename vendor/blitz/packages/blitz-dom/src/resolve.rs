@@ -103,6 +103,11 @@ impl BaseDocument {
         // images, or ones that have all already been triggered).
         self.check_lazy_images();
 
+        // Animated images (GIF today) — advance any whose current frame's
+        // delay has elapsed. No-ops immediately once `animated_images` is
+        // empty (pages with no animated images, the common case).
+        self.advance_animated_images();
+
         // Clear all damage and dirty flags
         if self.incremental_layout {
             for (_, node) in self.nodes.iter_mut() {

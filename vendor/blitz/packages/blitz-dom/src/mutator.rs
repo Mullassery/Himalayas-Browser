@@ -3,6 +3,8 @@ use markup5ever::LocalName;
 use std::collections::HashSet;
 use std::mem;
 use std::ops::{Deref, DerefMut};
+#[cfg(feature = "audio")]
+use std::sync::Arc;
 
 use crate::document::make_device;
 use crate::layout::damage::ALL_DAMAGE;
@@ -34,6 +36,8 @@ pub enum AppendTextErr {
 /// function for borrow-checker reasons.
 enum SpecialOp {
     LoadImage(NodeId),
+    #[cfg(feature = "audio")]
+    LoadAudio(NodeId),
     LoadIframe(NodeId),
     LoadStylesheet(NodeId),
     UnloadStylesheet(NodeId),
@@ -727,6 +731,8 @@ impl<'doc> DocumentMutator<'doc> {
         for op in ops.drain(0..) {
             match op {
                 SpecialOp::LoadImage(node_id) => self.load_image(node_id),
+                #[cfg(feature = "audio")]
+                SpecialOp::LoadAudio(node_id) => self.load_audio(node_id),
                 SpecialOp::LoadIframe(node_id) => self.load_iframe(node_id),
                 SpecialOp::LoadStylesheet(node_id) => self.load_linked_stylesheet(node_id),
                 SpecialOp::UnloadStylesheet(node_id) => self.unload_stylesheet(node_id),
@@ -763,6 +769,8 @@ impl<'doc> DocumentMutator<'doc> {
                 "title" => self.title_node = Some(node_id),
                 "link" => self.eager_op_queue.push(SpecialOp::LoadStylesheet(node_id)),
                 "img" => self.eager_op_queue.push(SpecialOp::LoadImage(node_id)),
+                #[cfg(feature = "audio")]
+                "audio" => self.eager_op_queue.push(SpecialOp::LoadAudio(node_id)),
                 "iframe" => self.eager_op_queue.push(SpecialOp::LoadIframe(node_id)),
                 "canvas" => self
                     .eager_op_queue
@@ -837,6 +845,13 @@ impl<'doc> DocumentMutator<'doc> {
                     .eager_op_queue
                     .push(SpecialOp::UnloadStylesheet(node_id)),
                 SpecialElementData::Image(_) => {}
+                // Stop playback rather than leaving it running detached
+                // from any node — matches a real `<audio>` element's
+                // removal behavior (playback stops), not a special case.
+                #[cfg(feature = "audio")]
+                SpecialElementData::Audio(audio) => {
+                    audio.player.pause();
+                }
                 SpecialElementData::Canvas(_) => {
                     self.recompute_is_animating = true;
                 }
@@ -1177,6 +1192,41 @@ impl<'doc> DocumentMutator<'doc> {
                 ),
             );
         }
+    }
+
+    /// Fetches an `<audio src>`, wiring up `SpecialElementData::Audio` and
+    /// (if the `autoplay` attribute is present) starting playback once the
+    /// bytes arrive — see `crate::audio` for the actual decode/playback
+    /// machinery and the doc comment there for what's *not* built yet
+    /// (seek, volume, a `controls` widget, JS `.play()`/`.pause()`).
+    #[cfg(feature = "audio")]
+    fn load_audio(&mut self, target_id: NodeId) {
+        let node = &mut self.doc.nodes[target_id];
+        let Some(element) = node.element_data_mut() else { return };
+
+        let autoplay = element.has_attr(local_name!("autoplay"));
+        let raw_src = element.attr(local_name!("src")).filter(|s| !s.is_empty()).map(str::to_string);
+
+        element.special_data = SpecialElementData::Audio(crate::node::AudioElementData {
+            src: None,
+            autoplay,
+            player: Arc::new(crate::audio::AudioPlayer::default()),
+        });
+
+        let Some(raw_src) = raw_src else { return };
+        let url = self.doc.resolve_url(&raw_src);
+
+        self.doc.net_provider.fetch(
+            self.doc.id(),
+            self.doc.build_request(url),
+            ResourceHandler::boxed(
+                self.doc.tx.clone(),
+                self.doc.id(),
+                Some(target_id),
+                self.doc.shell_provider.clone(),
+                crate::net::AudioBytesHandler,
+            ),
+        );
     }
 
     fn load_iframe(&mut self, target_id: NodeId) {
