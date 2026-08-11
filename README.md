@@ -47,7 +47,7 @@ From the original benchmark pass (see PERFORMANCE.md) — not re-measured agains
 
 ---
 
-## ⚠️ Note: Initial Release (Local Testing)
+## Note: Initial Release (Local Testing)
 
 > **This initial release is built for local testing (running on `localhost`). DNS and CDN support will be added in upcoming updates, and the full suite of other features is rolling out soon!**
 
@@ -238,6 +238,8 @@ himalayas https://example.com
 
 ## Hardware Tier Support
 
+From the original benchmark pass (see PERFORMANCE.md) — not independently re-measured this session; treat as an estimate pending re-verification, same as the native GUI shell numbers in "The Proof" above.
+
 ### Constrained Devices (256-512 MB RAM)
 - Binary: 8-12 MB (smallest browser available)
 - Runtime: 18-22 MB (viable)
@@ -260,7 +262,7 @@ himalayas https://example.com
 
 ## Screen Size Performance
 
-Paint time consistency across all devices:
+From the original benchmark pass (see PERFORMANCE.md) — not independently re-measured this session. Paint time consistency across all devices:
 
 | Screen Size | Device Type | Himalayas | Mainstream | Firefox | Safari |
 |-------------|-------------|-----------|--------|---------|--------|
@@ -277,7 +279,7 @@ Himalayas maintains sub-26ms paint time across all screen sizes. Competitors var
 
 ## Battery Efficiency
 
-Mobile device battery test (4 hours idle, screen off):
+From the original benchmark pass (see PERFORMANCE.md) — not independently re-measured this session. Mobile device battery test (4 hours idle, screen off):
 
 | Browser | Battery After 4h | Drain Rate | Estimated Daily |
 |---------|------------------|-----------|-----------------|
@@ -338,15 +340,15 @@ Mainstream browsers: 7-8 policies
 
 ## Performance Benchmarks
 
-Full detailed benchmarks available in PERFORMANCE.md (630 lines).
+Full detailed benchmarks available in PERFORMANCE.md (630 lines) — note that document predates the headless-daemon measurements in "The Proof" above and hasn't been fully reconciled with them yet; where the two disagree, treat the numbers in "The Proof" as current.
 
-Key findings:
-- Startup: 6.5x faster than mainstream browsers (320ms vs 2.1s)
-- Memory: 80% lighter than mainstream browsers (28MB vs 120MB idle)
-- Scaling: 6.7x better scaling per concurrent tab
-- Battery: 8x better battery efficiency (mobile)
-- Paint time: Competitive with Safari, faster than mainstream browsers
-- Multi-agent: Only browser supporting true bot isolation and scaling
+Key findings (see "The Proof" above for what's independently measured this round vs. original-benchmark-pass figures):
+- Startup: headless daemon ~30ms measured; GUI shell startup not yet re-measured
+- Memory: headless daemon ~8MB idle measured; GUI shell memory not yet re-measured
+- Scaling: 6.7x better scaling per concurrent tab (original benchmark pass)
+- Battery: 8x better battery efficiency, mobile (original benchmark pass)
+- Paint time: competitive with Safari, faster than mainstream browsers (original benchmark pass)
+- Multi-agent: only browser supporting true bot isolation and scaling
 
 ---
 
