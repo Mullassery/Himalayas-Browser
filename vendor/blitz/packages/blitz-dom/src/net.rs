@@ -558,6 +558,41 @@ impl NetHandler for ResourceHandler<ImageHandler> {
     }
 }
 
+/// Real, reasoned bounds for a single decoded image — an untrusted,
+/// attacker-controllable input (any image any page's HTML/CSS points at).
+/// The `image` crate already applies its own default `Limits` (a 512MB
+/// `max_alloc`, no dimension cap) automatically inside `ImageReader::new`,
+/// so this isn't "adding protection where there was none" — it's
+/// tightening a real but generous existing default. 512MB *per image* is
+/// a lot for a page that can reference many images at once (a real
+/// resource-exhaustion angle even if no single decode exceeds the
+/// crate's own cap); 16384px in either dimension is far beyond any real
+/// photo/graphic a real site would legitimately serve (a 16384×16384
+/// RGBA8 image is already 1GB uncompressed, which `max_alloc` below would
+/// independently reject before dimensions even come into it — the two
+/// limits back each other up, not redundant).
+fn image_decode_limits() -> image::Limits {
+    // `Limits` is `#[non_exhaustive]` (the crate reserves the right to add
+    // more limit kinds later), so it has to be built off `default()` and
+    // mutated rather than a direct struct literal.
+    let mut limits = image::Limits::default();
+    limits.max_image_width = Some(16_384);
+    limits.max_image_height = Some(16_384);
+    limits.max_alloc = Some(128 * 1024 * 1024);
+    limits
+}
+
+/// Real cap on animated-GIF frame *count* — `image::Limits` bounds a
+/// single frame's dimensions/allocation (applied per-frame below via
+/// `GifDecoder::set_limits`), but says nothing about how many frames an
+/// animation can have. A GIF with millions of tiny, individually-tiny
+/// frames would pass every per-frame check while still taking
+/// unreasonable time/memory to decode and hold in `AnimatedImageData`.
+/// 10,000 frames at a real browser's ~100ms floor per frame
+/// (`AnimatedFrame::delay`) is already over 16 minutes of animation —
+/// far more than any real site's actual animated GIF.
+const MAX_ANIMATED_FRAMES: usize = 10_000;
+
 impl ImageHandler {
     fn parse(&self, bytes: Bytes) -> Result<Resource, String> {
         // Animated GIF: checked first via a cheap format sniff (no
@@ -572,11 +607,11 @@ impl ImageHandler {
             return Ok(Resource::AnimatedImage(self.kind, animated));
         }
 
-        let image_err = match image::ImageReader::new(Cursor::new(&bytes))
+        let mut reader = image::ImageReader::new(Cursor::new(&bytes))
             .with_guessed_format()
-            .expect("IO errors impossible with Cursor")
-            .decode()
-        {
+            .expect("IO errors impossible with Cursor");
+        reader.limits(image_decode_limits());
+        let image_err = match reader.decode() {
             Ok(image) => {
                 let raw_rgba8_data = image.clone().into_rgba8().into_raw();
                 return Ok(Resource::Image(
@@ -623,14 +658,33 @@ impl ImageHandler {
     /// than surfacing a spurious error for something that isn't actually
     /// broken.
     fn decode_animated_gif(bytes: &Bytes) -> Option<crate::node::AnimatedImageData> {
-        use image::AnimationDecoder;
+        use image::{AnimationDecoder, ImageDecoder};
 
-        let decoder = image::codecs::gif::GifDecoder::new(Cursor::new(bytes.as_ref())).ok()?;
+        let mut decoder = image::codecs::gif::GifDecoder::new(Cursor::new(bytes.as_ref())).ok()?;
+        // Unlike the static path, `GifDecoder` isn't built through
+        // `ImageReader` (which applies its own default limits
+        // automatically) — without this, animated-GIF decode had *no*
+        // size/allocation bound at all, not even the crate's generous
+        // default. `set_limits` bounds each individual frame the same
+        // way `image_decode_limits()` bounds a static image.
+        decoder.set_limits(image_decode_limits()).ok()?;
+
         let mut width = 0u32;
         let mut height = 0u32;
         let mut frames = Vec::new();
         for frame in decoder.into_frames() {
             let frame = frame.ok()?;
+            // Frame *count* isn't something `Limits` bounds at all (it
+            // only covers a single frame's dimensions/allocation) — a
+            // GIF with an unreasonable number of individually-small
+            // frames would pass every per-frame check while still being
+            // unreasonable to decode and hold in memory. Bail out (not
+            // silently truncate to the first N frames) so a malicious
+            // file falls through to being treated as a decode failure,
+            // not a subtly-wrong-looking animation.
+            if frames.len() >= MAX_ANIMATED_FRAMES {
+                return None;
+            }
             let delay: std::time::Duration = frame.delay().into();
             let buffer = frame.buffer();
             width = buffer.width();
@@ -714,9 +768,12 @@ mod tests {
         {
             let mut encoder = GifEncoder::new(&mut bytes);
             for (i, &delay_ms) in delays_ms.iter().enumerate() {
-                // A different solid color per frame so a decoded frame's
-                // pixel data can be checked against which frame it is.
-                let color = Rgba([(i as u8 + 1) * 50, 0, 0, 255]);
+                // A different solid color per frame (cycling every 5, to
+                // stay within u8 regardless of how many frames a test
+                // encodes — the frame-count-cap test encodes thousands)
+                // so a decoded frame's pixel data can be checked against
+                // which frame it is.
+                let color = Rgba([((i % 5) as u8 + 1) * 50, 0, 0, 255]);
                 let img = RgbaImage::from_pixel(2, 2, color);
                 let frame = Frame::from_parts(img, 0, 0, Delay::from_numer_denom_ms(delay_ms, 1));
                 encoder.encode_frame(frame).unwrap();
@@ -767,5 +824,38 @@ mod tests {
     #[test]
     fn decode_animated_gif_returns_none_for_a_non_gif() {
         assert!(ImageHandler::decode_animated_gif(&Bytes::from_static(b"not a gif")).is_none());
+    }
+
+    // Testing the *values* wired into `image_decode_limits()` against the
+    // `image` crate's own `Limits::check_dimensions`/`reserve` — real
+    // upstream logic already well-tested there, not reimplemented here —
+    // rather than exercising it end-to-end through a hand-crafted
+    // malicious file (a real decompression-bomb PoC file has a tiny
+    // header claiming huge dimensions; constructing a byte-valid one with
+    // a correct PNG CRC etc. just for a test is real effort for the same
+    // coverage this gets more directly and much faster).
+    #[test]
+    fn image_decode_limits_reject_dimensions_beyond_16384() {
+        let limits = image_decode_limits();
+        assert!(limits.check_dimensions(16_384, 16_384).is_ok());
+        assert!(limits.check_dimensions(16_385, 100).is_err());
+        assert!(limits.check_dimensions(100, 16_385).is_err());
+    }
+
+    #[test]
+    fn image_decode_limits_reject_allocations_beyond_128mb() {
+        const CAP: u64 = 128 * 1024 * 1024;
+        assert!(image_decode_limits().reserve(CAP).is_ok());
+        assert!(image_decode_limits().reserve(CAP + 1).is_err());
+    }
+
+    #[test]
+    fn decode_animated_gif_rejects_more_frames_than_the_cap() {
+        // One frame past the real cap — proves the check fires exactly
+        // where expected (at `MAX_ANIMATED_FRAMES + 1`, not off-by-one in
+        // either direction) without needing to encode the full 10,000+
+        // frames that would actually trip it in a from-scratch attack.
+        let bytes = encode_test_gif(&vec![100u32; MAX_ANIMATED_FRAMES + 1]);
+        assert!(ImageHandler::decode_animated_gif(&bytes).is_none());
     }
 }

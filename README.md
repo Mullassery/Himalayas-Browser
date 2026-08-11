@@ -2,7 +2,7 @@
 
 **The browser that makes mainstream browsers look slow. Built for agents, loved by speed fanatics.**
 
-[![GitHub Stars](https://img.shields.io/github/stars/Mullassery/Himalayas-Browser?style=social)](https://github.com/Mullassery/Himalayas-Browser) [![CI](https://github.com/Mullassery/Himalayas-Browser/actions/workflows/ci.yml/badge.svg)](https://github.com/Mullassery/Himalayas-Browser/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-Proprietary-blue?style=flat-square)](LICENSE) [![Version](https://img.shields.io/badge/version-0.5.0-blue?style=flat-square)](.)
+[![GitHub Stars](https://img.shields.io/github/stars/Mullassery/Himalayas-Browser?style=social)](https://github.com/Mullassery/Himalayas-Browser) [![CI](https://github.com/Mullassery/Himalayas-Browser/actions/workflows/ci.yml/badge.svg)](https://github.com/Mullassery/Himalayas-Browser/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-Proprietary-blue?style=flat-square)](LICENSE) [![Version](https://img.shields.io/badge/version-0.5.1-blue?style=flat-square)](.)
 
 ---
 
@@ -328,8 +328,8 @@ Key findings:
 | Phase 2.5 | Complete | Adaptive intelligence engine (143 tests) |
 | Phase 3+ | In Progress | Multi-form factors, fleet management |
 
-Latest Version: 0.5.0 (matches `Cargo.toml`)  
-Tests Passing: 522 across the full workspace (`cargo test --features full`, the native-shell binary's own suite, and the vendored rendering engine's — 5 additional tests are `#[ignore]`d live-network/manual checks, not counted here)  
+Latest Version: 0.5.1 (matches `Cargo.toml`)  
+Tests Passing: 525 across the full workspace (`cargo test --features full`, the native-shell binary's own suite, and the vendored rendering engine's — 5 additional tests are `#[ignore]`d live-network/manual checks, not counted here)  
 Code: Rust (core) + Python (bindings)
 
 ---

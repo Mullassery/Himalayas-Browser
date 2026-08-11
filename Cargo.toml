@@ -1,6 +1,6 @@
 [package]
 name = "himalayas"
-version = "0.5.0"
+version = "0.5.1"
 edition = "2021"
 authors = ["Georgi Mammen Mullassery <mullassery@gmail.com>"]
 description = "The world's first truly agent-native browser platform"
