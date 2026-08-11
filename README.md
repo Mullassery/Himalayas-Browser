@@ -95,6 +95,23 @@ Robotics (ROS 2)         Yes (native) No             No              No
 
 ---
 
+## Native Browser Shell (`himalayas-desktop`)
+
+A real, GPU-rendered browser window — not just the headless daemon — built on a vendored, patched fork of [Blitz](https://github.com/DioxusLabs/blitz) (pure-Rust HTML/CSS/JS rendering, no Chromium/CEF embedded). Opt-in today via the `js_engine` Cargo feature (`cargo run --bin himalayas-desktop --features js_engine`) — off by default while it matures, not yet the primary build.
+
+What's real and working, not aspirational:
+- Tabs (drag to reorder, pin/unpin with compact favicon-style pinned tabs that survive a restart), address bar with real navigation/history, keyboard shortcuts
+- Bookmarks: a star button plus a full Bookmark Manager (folders, search, sort, drag-to-move, multi-select, HTML/JSON import & export)
+- A real disk HTTP cache (Cache-Control/ETag/Last-Modified-aware) covering both page navigation and subresources
+- Real image support: JPEG/PNG/WebP/AVIF/GIF/BMP, `srcset`/`sizes` responsive images, `<picture>`/`<source>` art direction, `loading="lazy"`, animated GIF playback — with real decoder resource limits against oversized/malicious images
+- Real `<audio>` playback (MP3/AAC/WAV/Vorbis/FLAC, via `rodio`/`symphonia`) — `<video>` isn't built yet, a deliberate call pending a real decode-architecture decision (see `docs/NATIVE_RENDERING_PLAN.md`)
+- Accessibility-motivated shell scaling (bigger address bar/tabs, independent of page-content zoom) and a page-zoom setting
+- `himalayas mcp`: a real [Model Context Protocol](https://modelcontextprotocol.io) server over stdio, so Claude Desktop, Claude Code, and other MCP clients can drive Himalayas directly — navigate/query/click/input/get_text/submit_form and more, as real MCP tools
+
+Full patch-by-patch engineering log (what's built, what's deliberately deferred, and why): `docs/NATIVE_RENDERING_PLAN.md`.
+
+---
+
 ## Install
 
 No packaged installer (.dmg/.deb/.exe) is published yet — this initial release is build-from-source/cargo-only (matches the local-testing note above). Two real, working ways to get it running today:
