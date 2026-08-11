@@ -967,10 +967,10 @@ The "Phased plan" above is the original spike-to-integration plan and is fully c
 
 Small, well-understood extensions of systems that already exist and work; no new subsystem, no new dependency risk.
 
-1. **Live visual QA pass on everything verified only by unit test/build so far**: viewport scrollbar drag feel, the 2x chrome sizing, bookmark star/manager click-through (add → edit → import/export a real file), pin/unpin + drag into/out of the pinned zone, `loading="lazy"` against a real long page. All of these have passing automated tests but no human-eyes confirmation in the running app.
-2. **Pin tab persistence**: `Settings → Startup → Restore pinned tabs`, the one piece of the original pinned-tab ask explicitly deferred (`docs/NATIVE_RENDERING_PLAN.md`'s "Pin a tab" section). Needs a real on-disk session file (nothing in `desktop.rs` persists anything today — tabs/bookmarks/folders are all in-memory, cleared on restart) — the first feature to actually need that, so scope it as "add minimal session persistence," not just "remember pinned tabs."
-3. **`<picture>`/`<source>` responsive images**: confirmed unhandled entirely (see the "Real `<img loading="lazy">` support" section's audit). Reuses the existing `select_srcset_candidate`/`eval_sizes` from the srcset/sizes work — pick a `<source>` by `media`/`type` before falling back to the inner `<img>`.
-4. **Bookmark Manager: drag-and-drop + multi-select**, the two pieces explicitly scoped out of the first pass. Drag-and-drop reordering/move-between-folders can likely reuse the tab strip's mousedown-arm/mouseenter-swap pattern rather than needing real HTML5 drag events (which don't fire in this shell). Multi-select needs a `selected: HashSet<String>` (keyed by URL) plus bulk move/delete actions in the manager toolbar.
+1. **Live visual QA pass on everything verified only by unit test/build so far**: viewport scrollbar drag feel, the 2x chrome sizing, bookmark star/manager click-through (add → edit → import/export a real file), pin/unpin + drag into/out of the pinned zone, `loading="lazy"` against a real long page. All of these have passing automated tests but no human-eyes confirmation in the running app. Still outstanding — needs a real windowed session on the user's own machine, not something to fake from here.
+2. ✅ **Pin tab persistence**: done — see "Pin tab persistence (Phase 1.2)" above.
+3. ✅ **`<picture>`/`<source>` responsive images**: done — see "`<picture>`/`<source>` (Phase 1.3)" above.
+4. ✅ **Bookmark Manager: drag-and-drop + multi-select**: done — see "Bookmark Manager: drag-to-move and multi-select (Phase 1.4)" above.
 
 ### Phase 2 — Wire existing capability outward, round out caching
 
