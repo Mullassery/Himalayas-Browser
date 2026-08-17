@@ -65,10 +65,9 @@ Safari's data:        Apple iCloud sync (by default)
 ```
 
 - Every session private by default (no configuration needed)
-- 100% ads blocked at network level
 - No cloud sync (memory-first architecture)
-- Zero tracking pixels (100% blocked)
 - Works offline (no internet required)
+- `block_trackers` config option (on by default) — not yet wired to enforcement logic in the current source, see Known Issues
 
 **Mainstream browsers:** Public by default, vendor tracks clicks, surveillance capitalism model  
 **Himalayas:** Private by default, zero tracking, user-centric design
@@ -103,14 +102,12 @@ Desktop (Windows/Mac)    Yes         Yes             Yes             macOS only
 Mobile (iOS/Android)     Yes         Yes             Yes             iOS only
 Raspberry Pi             Yes         No (too large)  No (too large)  No
 256MB IoT Devices        Yes         No              No              No
-Robotics (ROS 2)         Yes (native) No             No              No
 ```
+Binary-size/RAM figures from the original benchmark pass (see PERFORMANCE.md), not independently re-measured this round.
 
 - ~6MB binary (vs 150MB+ competitors)
-- Runs on 256MB devices (only browser viable here)
-- Native sensor support (RGB, Thermal, LiDAR, IMU)
-- ROS 2 integration (robotics native)
-- Fleet management (coordinate 100+ devices)
+- Runs on 256MB devices (only browser viable here, per the original benchmark pass)
+- Fleet management (coordinate 100+ devices) — planned, see Phase 7 in Status below, not built yet
 
 ---
 
@@ -164,11 +161,8 @@ curl http://127.0.0.1:8080/health
 | Feature | Himalayas | Mainstream | Firefox | Safari |
 |---------|-----------|--------|---------|--------|
 | **Default Private Session** | Every session | Public | Public | Public |
-| **Ads Blocked** | 100% (network) | 0% | 65% | 70% |
-| **Tracking Pixels Blocked** | 100% | 0% | 65% | 70% |
-| **Security Policies** | 17/17 | 8/17 | 7/17 | 8/17 |
 | **Permission Expiry** | Auto (time-bound) | Never | Never | Never |
-| **Cloud Sync Required** | No | Google (default) | Mozilla (default) | iCloud (default) |
+| **Cloud Sync Required** | No | Vendor account (default) | Mozilla (default) | iCloud (default) |
 
 ### Performance
 
@@ -195,44 +189,50 @@ Headless daemon (measured, see PERFORMANCE.md for methodology) and native GUI sh
 | Feature | Himalayas | Mainstream | Firefox | Safari |
 |---------|-----------|--------|---------|--------|
 | **Daemon Architecture** | Native | Workaround (headless) | Workaround (headless) | No |
-| **Multi-Agent Isolation** | Per-bot storage/network/secrets | Shared resources | Shared resources | Shared resources |
+| **Multi-Agent Isolation** | Per-tab/per-session cookies & storage (`IsolationMode`) | Shared resources | Shared resources | Shared resources |
 | **IoT Support** | ~6MB binary | 350MB (not viable) | 220MB (not viable) | No |
-| **Sensor Integration** | Native (RGB, Thermal, LiDAR, IMU) | No | No | No |
-| **ROS 2 Integration** | Native | No | No | No |
 | **Fleet Orchestration** | Planned (Phase 7) | No | No | No |
 
 ---
 
 ## Real-World Use Cases
 
-### Autonomous Agents
-```python
-from himalayas import Agent
+No language-specific SDK (Python or otherwise) ships today — the real interfaces are the `POST /agent` HTTP endpoint and the `himalayas mcp` stdio MCP server. The examples below use the HTTP endpoint directly via `curl`; see `src/server.rs` and `src/mcp.rs` for the full request/response shapes.
 
-agent = Agent("scraper-bot")
-agent.navigate("https://example.com")
-results = agent.execute("return document.querySelectorAll('a')")
+### Autonomous Agents
+```bash
+himalayas daemon &
+
+curl -X POST http://127.0.0.1:8080/agent \
+  -H 'Content-Type: application/json' \
+  -d '{"agent_id":"scraper-bot","session_id":"s1","action":"navigate","parameters":{"url":"https://example.com"}}'
+
+curl -X POST http://127.0.0.1:8080/agent \
+  -H 'Content-Type: application/json' \
+  -d '{"agent_id":"scraper-bot","session_id":"s1","action":"query","parameters":{"selector":"a"}}'
 ```
+Supported `action` values today: `navigate`, `query`, `click`, `get_text`, `submit_form`.
 
 ### Multi-Agent Orchestration
 ```bash
-# Launch 50 concurrent agents (uses only 580MB RAM)
-for i in {1..50}; do
-  himalayas tab create https://site.com/page/$i &
+# Each distinct session_id gets its own isolated cookies/storage (IsolationMode)
+for i in $(seq 1 10); do
+  curl -X POST http://127.0.0.1:8080/agent \
+    -H 'Content-Type: application/json' \
+    -d "{\"agent_id\":\"bot-$i\",\"session_id\":\"session-$i\",\"action\":\"navigate\",\"parameters\":{\"url\":\"https://example.com\"}}" &
 done
+wait
 ```
-
-### IoT and Robotics
-```bash
-# On Raspberry Pi: ~6MB binary, native ROS 2
-himalayas daemon --sensors rgb,thermal,lidar --ros2
-```
+The 50-concurrent-agents/580MB figure elsewhere in this document is from the original benchmark pass (see PERFORMANCE.md), not re-verified this round.
 
 ### Privacy-First Browsing
 ```bash
-himalayas https://example.com
-# Every session private, offline-capable, ads blocked, no tracking
+# Headless (no window):
+himalayas daemon
+# Native GUI shell (real tabs/rendering, opt-in, see "Native Browser Shell" above):
+cargo run --bin himalayas-desktop --features js_engine
 ```
+Every session is private by default, no configuration required — see PERFORMANCE.md and the tables above for what's measured vs. original-pass estimates.
 
 ---
 
@@ -315,26 +315,11 @@ Runtime-First Model:
 
 ## Security by Default
 
-17 security policies implemented:
-- Origin isolation (prevents cross-site data theft)
-- AI agent sandboxing (bots cannot access each other's data)
-- Automatic permission expiry (time-bound access - 30min to 24h)
-- Bot capability limits (explicit capability grants)
-- File access control (sandboxed)
-- Enterprise data classification (sensitive data handling)
-- Network policy enforcement (firewall-like rules)
-- Localhost protection (prevents local network attacks)
-- Download security (malware detection)
-- Prompt injection detection (AI-aware threat detection)
-- Extension capability control (permissions-based)
-- Secret vault integration (encrypted credential storage)
-- Behavioral anomaly detection (continuous authentication)
-- Audit logging (complete activity trace)
-- Risk-adaptive policy (threat-based enforcement)
-- Re-auth time binding (forced re-authentication)
-- Age-based safety policies (child/teen/adult profiles)
+What's actually implemented and verifiable in source today (see `src/permission/engine.rs`, `src/browser/tabs.rs`, `src/browser/mod.rs`):
+- Per-tab/per-session isolation: each session gets its own cookies and storage (`IsolationMode::Isolated` vs. `Shared`), so concurrent agents/tabs don't see each other's data by default
+- Explicit, resource+action-scoped permission grants with automatic time-bound expiry (`PermissionEngine`/`PermissionGrant::is_expired`) rather than standing, indefinite permissions
 
-Mainstream browsers: 7-8 policies
+An earlier draft of this README listed 17 named security policies (prompt injection detection, a secret vault, malware/download scanning, audit logging, network policy enforcement, and others). Searching the current source turned up no implementation for most of those, so the list has been cut down to only what's verifiable above; see Known Issues below.
 
 ---
 
@@ -356,13 +341,14 @@ Key findings (see "The Proof" above for what's independently measured this round
 
 - **PERFORMANCE.md** - Detailed benchmarks (630 lines)
 - **docs/GETTING_STARTED.md** - Step-by-step setup per platform
-- **SECURITY.md** - Zero-trust architecture details
+- **docs/USAGE.md** - Usage guide (daily usage, AI features, document management, privacy, workspaces)
 - **docs/UI_UX_VISION.md** - UI/UX design vision (adaptive interface, AI workspace, workspaces, design language)
-- **docs/ROADMAP.md** - Keyboard & trackpad support specification
+- **docs/ROADMAP.md** - Keyboard & trackpad support specification (planned, Phase 6)
 - **docs/NATIVE_RENDERING_PLAN.md** - Native rendering engine spike findings and follow-up plan
-- **API Documentation** - Automation and scripting reference
 - **MCP Server** - `himalayas mcp` runs a real Model Context Protocol server over stdio, exposing navigate/query/click/input/get_text/submit_form/go_back/go_forward/get_current_url/get_history as MCP tools — for Claude Desktop, Claude Code, and other MCP clients to drive Himalayas directly
-- **Interactive Comparison** - Browser feature matrix (HTML)
+- **docs/browser-comparison-interactive.html** - Browser feature matrix (HTML)
+
+There is currently no `SECURITY.md` in this repo despite an earlier README draft referencing one — see Known Issues.
 
 ---
 
@@ -377,7 +363,27 @@ Key findings (see "The Proof" above for what's independently measured this round
 
 Latest Version: 0.5.2 (matches `Cargo.toml`)  
 Tests Passing: 524 across the full workspace (`cargo test --features full`, the native-shell binary's own suite, and the vendored rendering engine's — 2 additional tests are `#[ignore]`d live-network checks, not counted here)  
-Code: Rust (core) + Python (bindings)
+Code: Rust. No Python (or other language) SDK ships today — automation goes through the HTTP `/agent` endpoint or the `himalayas mcp` MCP server (see Real-World Use Cases above).
+
+---
+
+## Known Issues
+
+This is an experimental, pre-1.0 project. Fixed in this documentation pass (source-verified, not guessed):
+- Removed "Native sensor support (RGB, Thermal, LiDAR, IMU)" and "ROS 2 integration" claims — no ROS 2 dependency and no camera/thermal/LiDAR code exist anywhere in `src/`; only IMU exists, and only as one input to on-device location fusion, not general robotics sensor support
+- Cut the "17 security policies implemented" list down to the two that are actually in source (per-session cookie/storage isolation, time-bound permission grants) — the other ~15 named policies (prompt injection detection, a secret vault, malware/download scanning, audit logging, network policy enforcement, localhost protection, extension capability control, data classification, risk-adaptive policy, re-auth binding, age-based profiles) returned no matches anywhere in `src/`
+- Removed "100% ads blocked" / "100% tracking pixels blocked" claims — `block_trackers` in `src/config.rs` is a config field that defaults to `true` but is never read anywhere else in the codebase; there's no enforcement logic behind it yet
+- Replaced the "Real-World Use Cases" examples: the old ones called `himalayas tab create ...`, `himalayas daemon --sensors rgb,thermal,lidar --ros2`, a bare `himalayas <url>`, and a Python `from himalayas import Agent` SDK — none of which exist. The real CLI has exactly three subcommands (`daemon`, `benchmark`, `mcp`); automation goes through the `POST /agent` HTTP endpoint or the `himalayas mcp` stdio server. Examples now use real `curl` calls against `/agent`
+- Fixed the License section — the repo has no `LICENSE` file despite the badge and old text pointing to one
+- Removed the `SECURITY.md` documentation entry — that file doesn't exist in the repo
+- Genericized one "Google" vendor mention in a comparison table
+
+Known gaps not fixed here (flagging rather than fabricating a fix):
+- No `LICENSE` file is committed — add one before treating the "Proprietary" claim as legally meaningful
+- The India Stack module (`src/india_stack/`, referenced from `docs/GETTING_STARTED.md`'s "Government workflows" bullet) is stubbed: its own source comments read "TODO: Implement actual DigiLocker OAuth2 flow / API call", "TODO: Implement actual eSign flow", "TODO: Implement signature verification", "TODO: Implement actual tesseract integration" — not functional yet
+- `himalayas-desktop` (native GUI shell) performance numbers throughout this README are from an earlier benchmark pass and have not been re-measured against the current build, as already noted inline above
+- `<video>` isn't implemented in the native shell yet (see "Native Browser Shell" above and `docs/NATIVE_RENDERING_PLAN.md`)
+- As of this pass: 0 open GitHub issues on this repo; roughly a dozen `TODO`/`FIXME` comments in `src/`, mostly concentrated in the India Stack module above
 
 ---
 
@@ -391,9 +397,9 @@ Report bugs or suggest features:
 
 ## License
 
-Proprietary License - Free to use with explicit attribution.
+Proprietary (matches `license = "Proprietary"` in `Cargo.toml` and the Homebrew formula).
 
-See LICENSE for terms.
+No `LICENSE` file is currently committed to this repository, so the specific terms are not yet written down anywhere authoritative — the badge above and any link to `LICENSE` will 404 until one is added. Treat this as all-rights-reserved until a `LICENSE` file is committed. See Known Issues.
 
 ---
 
