@@ -67,7 +67,20 @@ Safari's data:        Apple iCloud sync (by default)
 - Every session private by default (no configuration needed)
 - No cloud sync (memory-first architecture)
 - Works offline (no internet required)
-- `block_trackers` config option (on by default) — not yet wired to enforcement logic in the current source, see Known Issues
+- `block_trackers` (on by default): real domain-level blocking of known
+  tracker/analytics hosts (`doubleclick.net`, `google-analytics.com`, and
+  similar — see `TRACKER_DOMAINS` in `src/browser/navigator.rs`) at
+  navigation and redirect time. This blocks *navigating to* a tracker
+  domain; it does not block ad/tracker subresources (images, scripts,
+  iframes) embedded in a page you're viewing, because there's no
+  subresource-fetching pipeline in this browser yet — narrower than "ad
+  blocking" usually implies. `do_not_track` (real `DNT: 1` header) and
+  `block_third_party_cookies` (real: cookies from a redirect hop on a
+  different hostname than the page you navigated to are dropped, not
+  stored) are also now real. `fingerprint_protection` and
+  `clear_history_on_close` remain config fields with no enforcement code
+  yet — there's no JS/rendering engine to protect against fingerprinting,
+  and no persistent history store to clear, in this codebase today.
 
 **Mainstream browsers:** Public by default, vendor tracks clicks, surveillance capitalism model  
 **Himalayas:** Private by default, zero tracking, user-centric design
@@ -372,13 +385,35 @@ Code: Rust. No Python (or other language) SDK ships today — automation goes th
 This is an experimental, pre-1.0 project. Fixed in this documentation pass (source-verified, not guessed):
 - Removed "Native sensor support (RGB, Thermal, LiDAR, IMU)" and "ROS 2 integration" claims — no ROS 2 dependency and no camera/thermal/LiDAR code exist anywhere in `src/`; only IMU exists, and only as one input to on-device location fusion, not general robotics sensor support
 - Cut the "17 security policies implemented" list down to the two that are actually in source (per-session cookie/storage isolation, time-bound permission grants) — the other ~15 named policies (prompt injection detection, a secret vault, malware/download scanning, audit logging, network policy enforcement, localhost protection, extension capability control, data classification, risk-adaptive policy, re-auth binding, age-based profiles) returned no matches anywhere in `src/`
-- Removed "100% ads blocked" / "100% tracking pixels blocked" claims — `block_trackers` in `src/config.rs` is a config field that defaults to `true` but is never read anywhere else in the codebase; there's no enforcement logic behind it yet
+- Removed "100% ads blocked" / "100% tracking pixels blocked" claims (still not accurate — see below) and implemented real enforcement for `block_trackers`, `do_not_track`, and `block_third_party_cookies` in `src/browser/navigator.rs`, none of which had any consuming code anywhere in the codebase before this pass (confirmed by grep) despite `PrivacySettings`' `Default` impl claiming all three as on. 6 new tests in `navigator.rs` cover the real blocking logic (`is_tracker_domain`, `same_domain`, DNT header presence/absence, and an end-to-end tracker-domain block via `navigate()`)
 - Replaced the "Real-World Use Cases" examples: the old ones called `himalayas tab create ...`, `himalayas daemon --sensors rgb,thermal,lidar --ros2`, a bare `himalayas <url>`, and a Python `from himalayas import Agent` SDK — none of which exist. The real CLI has exactly three subcommands (`daemon`, `benchmark`, `mcp`); automation goes through the `POST /agent` HTTP endpoint or the `himalayas mcp` stdio server. Examples now use real `curl` calls against `/agent`
 - Fixed the License section — the repo has no `LICENSE` file despite the badge and old text pointing to one
 - Removed the `SECURITY.md` documentation entry — that file doesn't exist in the repo
 - Genericized one "Google" vendor mention in a comparison table
 
 Known gaps not fixed here (flagging rather than fabricating a fix):
+- `block_trackers`/tracker blocking is real but narrow: it blocks
+  navigation and redirect hops to a short, hardcoded list of known
+  tracker domains (`TRACKER_DOMAINS` in `src/browser/navigator.rs`), not
+  ad/tracker subresources (images, scripts, iframes) embedded in a
+  rendered page — there's no subresource-fetching pipeline in this
+  browser to hook that into yet. "100% ads/tracking blocked" would still
+  be inaccurate even with this fix; it's real domain-level blocking, not
+  comprehensive ad blocking.
+- `block_third_party_cookies`'s first-party/third-party comparison is
+  exact-hostname (`same_domain()` in `navigator.rs`), not true eTLD+1
+  (registrable domain) logic — `a.example.com` and `b.example.com` count
+  as different domains, which over-blocks relative to a real browser but
+  never under-blocks.
+- `fingerprint_protection` and `clear_history_on_close` remain
+  unenforced config fields — there's no JS/rendering engine in this
+  codebase to protect against fingerprinting, and no persistent history
+  store to clear.
+- `BrowserConfig::load()` (reading a config file from disk) exists but is
+  never called anywhere — `Browser::new()`/`Navigator::new()` use
+  `BrowserConfig::default()`'s privacy settings (all real/enforced as of
+  this pass), so the *defaults* are real, but there's no wiring yet for a
+  user's actual config file on disk to override them at startup.
 - No `LICENSE` file is committed — add one before treating the "Proprietary" claim as legally meaningful
 - The India Stack module (`src/india_stack/`, referenced from `docs/GETTING_STARTED.md`'s "Government workflows" bullet) is stubbed: its own source comments read "TODO: Implement actual DigiLocker OAuth2 flow / API call", "TODO: Implement actual eSign flow", "TODO: Implement signature verification", "TODO: Implement actual tesseract integration" — not functional yet
 - `himalayas-desktop` (native GUI shell) performance numbers throughout this README are from an earlier benchmark pass and have not been re-measured against the current build, as already noted inline above

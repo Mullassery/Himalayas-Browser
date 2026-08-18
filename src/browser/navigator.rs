@@ -3,6 +3,58 @@ use std::collections::HashMap;
 use std::time::Duration;
 use tracing::{debug, info, warn};
 
+use crate::config::PrivacySettings;
+
+/// Known tracker/analytics domains, blocked at the navigation layer when
+/// `PrivacySettings::block_trackers` is enabled. This is deliberately a
+/// short, unambiguous list of hosts that are *only* trackers/analytics
+/// endpoints -- not, e.g., "facebook.com" or "twitter.com" wholesale,
+/// which are legitimate sites a user might actually navigate to. This
+/// blocks top-level navigation and redirect hops to these domains; it
+/// does not block subresources (images/scripts/iframes) embedded in a
+/// rendered page, because there is no subresource-fetching pipeline in
+/// this browser yet (see README's Native Browser Shell section) -- so
+/// this is real, but narrower than "ad blocking" usually implies.
+const TRACKER_DOMAINS: &[&str] = &[
+    "doubleclick.net",
+    "google-analytics.com",
+    "googletagmanager.com",
+    "googlesyndication.com",
+    "googleadservices.com",
+    "adservice.google.com",
+    "scorecardresearch.com",
+    "hotjar.com",
+    "mixpanel.com",
+    "segment.io",
+    "amplitude.com",
+    "ads-twitter.com",
+    "analytics.twitter.com",
+];
+
+fn is_tracker_domain(url: &str) -> bool {
+    let Ok(parsed) = url::Url::parse(url) else {
+        return false;
+    };
+    let Some(host) = parsed.host_str() else {
+        return false;
+    };
+    TRACKER_DOMAINS
+        .iter()
+        .any(|tracker| host == *tracker || host.ends_with(&format!(".{tracker}")))
+}
+
+/// Real, if simplified, first-party/third-party comparison: exact
+/// hostname match rather than true eTLD+1 (registrable domain) logic, so
+/// `a.example.com` and `b.example.com` count as different domains. That
+/// over-blocks relative to a browser using real public-suffix-list-aware
+/// comparison, but never under-blocks, which is the safer direction for
+/// a privacy setting.
+fn same_domain(url_a: &str, url_b: &str) -> bool {
+    let host_a = url::Url::parse(url_a).ok().and_then(|u| u.host_str().map(String::from));
+    let host_b = url::Url::parse(url_b).ok().and_then(|u| u.host_str().map(String::from));
+    host_a.is_some() && host_a == host_b
+}
+
 #[derive(Debug, Clone)]
 pub struct PageContent {
     pub url: String,
@@ -73,10 +125,20 @@ const MAX_REDIRECTS: usize = 10;
 pub struct Navigator {
     user_agent: String,
     client: reqwest_middleware::ClientWithMiddleware,
+    privacy: PrivacySettings,
 }
 
 impl Navigator {
+    /// Equivalent to `Self::with_privacy_settings(PrivacySettings` from
+    /// `BrowserConfig::default())` -- i.e. do_not_track/block_trackers/
+    /// block_third_party_cookies are all real and enabled by default, not
+    /// just claimed as defaults in a config struct nothing reads (which
+    /// is what this constructor did before this pass).
     pub fn new() -> Result<Self> {
+        Self::with_privacy_settings(crate::config::BrowserConfig::default().privacy)
+    }
+
+    pub fn with_privacy_settings(privacy: PrivacySettings) -> Result<Self> {
         let user_agent = "Himalayas/0.1.0 (Agent-Native Browser)".to_string();
         // Built via `reqwest_middleware::reqwest` (that crate's own
         // re-export), not this crate's direct `reqwest` dependency — see
@@ -94,14 +156,27 @@ impl Navigator {
         // `crate::net_cache` for why this needed a shared helper rather
         // than being set up inline here and in desktop.rs separately.
         let client = crate::net_cache::cached_client(base_client);
-        Ok(Self { user_agent, client })
+        Ok(Self { user_agent, client, privacy })
     }
 
+    /// Navigates to `url`. If `block_trackers` is enabled and `url` (or a
+    /// redirect hop reached while following it) matches a known tracker
+    /// domain (see `TRACKER_DOMAINS`), returns a real error instead of
+    /// fetching it -- this is real domain-level blocking, not a config
+    /// field with no effect, but it's narrower than "ad blocking" usually
+    /// implies: it blocks navigation/redirects to tracker domains, not
+    /// subresources (images/scripts) embedded in a page, since there's no
+    /// subresource-fetching pipeline in this browser yet.
     pub async fn navigate(&self, url: &str, cookies: &CookieJar) -> Result<PageContent> {
         debug!("Navigating to: {}", url);
 
         let _parsed_url = url::Url::parse(url)?;
 
+        if self.privacy.block_trackers && is_tracker_domain(url) {
+            anyhow::bail!("Blocked navigation to known tracker domain: {}", url);
+        }
+
+        let first_party_url = url.to_string();
         let mut current_url = url.to_string();
         let mut redirect_chain = vec![current_url.clone()];
         let mut jar = cookies.clone();
@@ -109,7 +184,16 @@ impl Navigator {
         loop {
             let (status, html, headers) = self.fetch_page(&current_url, &jar).await?;
 
+            let block_third_party = self.privacy.block_third_party_cookies
+                && !same_domain(&first_party_url, &current_url);
             for (name, value) in Self::parse_set_cookie_headers(&headers) {
+                if block_third_party {
+                    debug!(
+                        "Blocked third-party cookie '{}' from {} (first-party: {})",
+                        name, current_url, first_party_url
+                    );
+                    continue;
+                }
                 jar.set(name, value);
             }
 
@@ -119,6 +203,13 @@ impl Navigator {
                         anyhow::bail!("Too many redirects starting from {}", url);
                     }
                     let next_url = self.follow_redirect(location, &current_url)?;
+                    if self.privacy.block_trackers && is_tracker_domain(&next_url) {
+                        anyhow::bail!(
+                            "Blocked redirect to known tracker domain: {} (from {})",
+                            next_url,
+                            current_url
+                        );
+                    }
                     debug!("Redirecting {} -> {}", current_url, next_url);
                     redirect_chain.push(next_url.clone());
                     current_url = next_url;
@@ -149,6 +240,9 @@ impl Navigator {
         let mut request = self.client.get(url);
         if let Some(cookie_header) = cookies.to_cookie_header() {
             request = request.header(reqwest::header::COOKIE, cookie_header);
+        }
+        if self.privacy.do_not_track {
+            request = request.header("DNT", "1");
         }
 
         let response = request.send().await?;
@@ -210,6 +304,9 @@ impl Navigator {
         let mut request = self.client.post(url);
         if let Some(cookie_header) = cookies.to_cookie_header() {
             request = request.header(reqwest::header::COOKIE, cookie_header);
+        }
+        if self.privacy.do_not_track {
+            request = request.header("DNT", "1");
         }
 
         let response = request.form(fields).send().await?;
@@ -488,5 +585,120 @@ mod tests {
         let page = nav.navigate("https://example.com", &jar).await.unwrap();
         assert_eq!(page.status_code, 200);
         assert!(page.html.to_lowercase().contains("example"));
+    }
+
+    // --- Privacy enforcement: block_trackers / do_not_track / block_third_party_cookies ---
+    //
+    // These config fields previously had zero code reading them anywhere
+    // (confirmed by grep before this pass) -- Navigator now actually
+    // enforces them. See navigate()'s and PrivacySettings' doc comments
+    // for exactly what "block_trackers" does and doesn't cover.
+
+    #[test]
+    fn test_is_tracker_domain_matches_known_trackers_and_subdomains() {
+        assert!(is_tracker_domain("https://www.google-analytics.com/collect"));
+        assert!(is_tracker_domain("https://stats.g.doubleclick.net/pixel"));
+        assert!(is_tracker_domain("https://doubleclick.net/"));
+    }
+
+    #[test]
+    fn test_is_tracker_domain_does_not_match_unrelated_or_lookalike_hosts() {
+        assert!(!is_tracker_domain("https://example.com/"));
+        // Not a suffix match -- "notdoubleclick.net" must not match "doubleclick.net".
+        assert!(!is_tracker_domain("https://notdoubleclick.net/"));
+        assert!(!is_tracker_domain("not a url"));
+    }
+
+    #[test]
+    fn test_same_domain_real_comparison() {
+        assert!(same_domain("https://example.com/a", "https://example.com/b"));
+        assert!(!same_domain("https://example.com/a", "https://tracker.example.org/b"));
+        // Simplified (exact-hostname, not eTLD+1) comparison, documented on
+        // same_domain(): subdomains count as different domains.
+        assert!(!same_domain("https://a.example.com/", "https://b.example.com/"));
+        assert!(!same_domain("not a url", "https://example.com/"));
+    }
+
+    #[tokio::test]
+    async fn test_navigate_blocks_known_tracker_domain_when_block_trackers_enabled() {
+        let nav = Navigator::with_privacy_settings(PrivacySettings {
+            block_trackers: true,
+            ..crate::config::BrowserConfig::default().privacy
+        })
+        .unwrap();
+        let jar = CookieJar::new();
+
+        let result = nav.navigate("https://doubleclick.net/pixel", &jar).await;
+
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("tracker"));
+    }
+
+    #[tokio::test]
+    async fn test_navigate_does_not_block_a_non_tracker_domain_when_block_trackers_enabled() {
+        // Not a network-dependent test of the disabled case (real tracker
+        // domains resolving over the real network would make that flaky
+        // and environment-dependent) -- instead confirms is_tracker_domain
+        // is actually consulted per-URL, not e.g. always true once enabled:
+        // a normal mock-server URL (not in TRACKER_DOMAINS) is unaffected
+        // even with block_trackers: true.
+        let mut server = mockito::Server::new_async().await;
+        let mock = server.mock("GET", "/").with_status(200).with_body("ok").create_async().await;
+
+        let nav = Navigator::with_privacy_settings(PrivacySettings {
+            block_trackers: true,
+            ..crate::config::BrowserConfig::default().privacy
+        })
+        .unwrap();
+        let jar = CookieJar::new();
+
+        let result = nav.navigate(&server.url(), &jar).await;
+
+        assert!(result.is_ok());
+        mock.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn test_navigate_sends_dnt_header_when_enabled() {
+        let mut server = mockito::Server::new_async().await;
+        let mock = server
+            .mock("GET", "/")
+            .match_header("dnt", "1")
+            .with_status(200)
+            .with_body("ok")
+            .create_async()
+            .await;
+
+        let nav = Navigator::with_privacy_settings(PrivacySettings {
+            do_not_track: true,
+            ..crate::config::BrowserConfig::default().privacy
+        })
+        .unwrap();
+        let jar = CookieJar::new();
+        nav.navigate(&server.url(), &jar).await.unwrap();
+
+        mock.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn test_navigate_omits_dnt_header_when_disabled() {
+        let mut server = mockito::Server::new_async().await;
+        let mock = server
+            .mock("GET", "/")
+            .match_header("dnt", mockito::Matcher::Missing)
+            .with_status(200)
+            .with_body("ok")
+            .create_async()
+            .await;
+
+        let nav = Navigator::with_privacy_settings(PrivacySettings {
+            do_not_track: false,
+            ..crate::config::BrowserConfig::default().privacy
+        })
+        .unwrap();
+        let jar = CookieJar::new();
+        nav.navigate(&server.url(), &jar).await.unwrap();
+
+        mock.assert_async().await;
     }
 }
